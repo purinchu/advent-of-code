@@ -10,12 +10,13 @@ use 5.036;
 use autodie;
 use experimental 'for_list';
 
-use List::Util qw(min sum);
+use List::Util qw(min max sum);
 use Mojo::JSON qw(j);
 
 # Config
 my $input_name = '../03/input';
 my $debug = 0;
+$" = ', '; # For arrays interpolated into strings
 
 # Globals
 
@@ -31,11 +32,24 @@ while (my $line = <$input_fh>) {
     read_game($line);
 }
 
-say j(\%games) if $debug;
+if ($debug) {
+    for my $id (sort { $a <=> $b } keys %games) {
+        say sprintf ("g%03d: ", $id);
+        for my $subgame (@{$games{$id}}) {
+            my @weights = map { sprintf("%02d", $_) } @$subgame;
+            say "     [", join(', ', @weights), "], ";
+        }
 
-my @min_games = map { min_cubes_for_game($games{$_}) } values %games;
+        my $min_weights = min_cubes_for_game($games{$id});
+        my @weights = map { sprintf("%02d", $_) } @$min_weights;
+        say "min: [", join(', ', @weights), "], ";
+    }
+}
+
+my @min_games = map { min_cubes_for_game($_) } values %games;
 my @powers    = map { $_->[0] * $_->[1] * $_->[2]    } @min_games;
 
+say "Powers: @powers" if $debug;
 say "Sum of power of min cube sets: ", sum(@powers);
 
 # Aux subs
@@ -76,11 +90,11 @@ sub read_game($line)
 
 sub min_cubes_for_game($game_ref)
 {
-    my @min_cubes = (999, 999, 999);
+    my @min_cubes = (0, 0, 0);
 
     for my $subgame (@$game_ref) {
         for my $i (0..2) {
-            $min_cubes[$i] = min($min_cubes[$i], $subgame->[$i]);
+            $min_cubes[$i] = max($min_cubes[$i], $subgame->[$i]);
         }
     }
 
