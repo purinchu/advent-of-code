@@ -55,7 +55,16 @@ sub convert_words_to_digits($line)
     );
 
     my $words = join('|', keys %substs); # make a regexp alteration
-    my $res = $line =~ s/($words)/$substs{$1}/reg;
 
-    $res;
+    # We want to address only a first and a last match.  Going only
+    # left-to-right risks removing letters that would cause a valid word to
+    # match had we started from the right.
+    # Test case from input: 8hkrb3oneightj (one/eight overlap, eight should win)
+    my $first_res = $line =~ s/($words)/$substs{$1}/re;
+
+    $words = reverse $words;
+    my $rline = reverse $first_res;
+    my $second_res = $rline =~ s/($words)/$substs{reverse $1}/re;
+
+    return reverse $second_res;
 }
