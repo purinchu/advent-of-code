@@ -17,6 +17,7 @@
 
 // config
 
+static const bool show_table = false;
 static const bool debug = false;
 
 // coordinate system:
@@ -80,7 +81,7 @@ static void add_symbol(uint16_t x, uint16_t y)
 static void decode_line(const std::string &line)
 {
     static uint16_t y = 0;
-    uint16_t x0 = 0, x1 = 0;
+    uint16_t x0 = 0;
     uint16_t x = 0;
     bool in_num = false;
 
@@ -90,7 +91,7 @@ static void decode_line(const std::string &line)
         x++; // new char to process
 
         if(std::isdigit(ch)) {
-            if constexpr (debug) {
+            if constexpr (show_table) {
                 std::cout << "\e[1;31m"; // bold red
             }
 
@@ -100,15 +101,14 @@ static void decode_line(const std::string &line)
             }
         }
         else {
-            if constexpr (debug) {
+            if constexpr (show_table) {
                 std::cout << (ch == '.' ? "\e[0;38m" : "\e[0;32m"); // gray or green
             }
 
             if (in_num) { // newly out of number?
                 in_num = false;
-                x1 = x;
 
-                add_number(line, x0, x1, y);
+                add_number(line, x0, x, y);
             }
 
             if (ch != '.') { // symbol
@@ -116,12 +116,17 @@ static void decode_line(const std::string &line)
             }
         }
 
-        if constexpr (debug) {
+        if constexpr (show_table) {
             std::cout << ch;
         }
     }
 
-    if constexpr (debug) {
+    // end of the line, check for any numbers
+    if (in_num) {
+        add_number(line, x0, x + 1, y);
+    }
+
+    if constexpr (show_table) {
         std::cout << "\e[0m" << std::endl; // reset color
     }
 }
