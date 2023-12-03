@@ -30,11 +30,13 @@ using std::uint16_t;
 using std::uint32_t;
 using std::as_const;
 
-// position of a potential match between symbol and number
+// a symbol that is optionally a gear
 // assume no more than 65,536
-struct point {
+struct symbol {
     uint16_t x = 0;
     uint16_t y = 0;
+    uint16_t num_parts = 0;
+    char glyph = '.';
 };
 
 // a number that is optionally a part number
@@ -46,21 +48,9 @@ struct number {
     bool is_part = false;
 };
 
-using symbol_pos = uint32_t; // encodes (x,y) positions into one value
-
 // global vars
-std::set<symbol_pos> symbol_points;
+std::vector<symbol> symbols;
 std::vector<number> numbers;
-
-static inline symbol_pos encoded_pos_from_point(point m)
-{
-    return symbol_pos(uint32_t(m.x << 16) | m.y);
-}
-
-static inline point point_from_encoded_pos(symbol_pos p)
-{
-    return point(p >> 16, p & 0xFFFF);
-}
 
 static void add_number(const std::string &line, uint16_t x0, uint16_t x1, uint16_t y)
 {
@@ -75,9 +65,9 @@ static void add_number(const std::string &line, uint16_t x0, uint16_t x1, uint16
     numbers.push_back(new_num);
 }
 
-static void add_symbol(uint16_t x, uint16_t y)
+static void add_symbol(uint16_t x, uint16_t y, char glyph)
 {
-    symbol_points.emplace(encoded_pos_from_point(point{x, y}));
+    symbols.emplace_back(x, y, 0, glyph);
 }
 
 static void decode_line(const std::string &line)
@@ -114,7 +104,7 @@ static void decode_line(const std::string &line)
             }
 
             if (ch != '.') { // symbol
-                add_symbol(x, y);
+                add_symbol(x, y, (char) ch);
             }
         }
 
@@ -170,20 +160,17 @@ int main(int argc, char **argv)
             std::cout << n.value << "," << n.x0 << "-" << n.x1 << "," << n.y << "\n";
         }
 
-        for (const auto &sym : as_const(symbol_points)) {
-            point m{point_from_encoded_pos(sym)};
-            std::cout << "symbol at " << m.x << "," << m.y << "\n";
+        for (const auto &sym : as_const(symbols)) {
+            std::cout << "symbol " << sym.glyph << " at " << sym.x << "," << sym.y << "\n";
         }
     }
 
     // look for matches
-    for (const auto &sym : as_const(symbol_points)) {
-        point m{point_from_encoded_pos(sym)};
-
+    for (const auto &sym : as_const(symbols)) {
         for (int i = -1; i < 2; i++) {
             for (int j = -1; j < 2; j++) {
-                uint16_t test_x = m.x + i;
-                uint16_t test_y = m.y + j;
+                uint16_t test_x = sym.x + i;
+                uint16_t test_y = sym.y + j;
 
                 // ok to be out of bounds, no number will match
                 for (auto &n : numbers) {
