@@ -1,4 +1,4 @@
-.PHONY: sum test clean
+.PHONY: sum test
 
 engine-parts: engine-parts.cpp
 	$(CXX) -o $@ -std=c++20 -Wall -W -Wextra -O2 -pipe -march=native $<
@@ -10,6 +10,3 @@ test: engine-parts sample
 # 537066 is apparently too low
 sum: engine-parts input
 	@./engine-parts input
-
-clean:
-	@rm -f engine-parts
