@@ -1,7 +1,7 @@
 .PHONY: sum test clean
 
 engine-parts: engine-parts.cpp
-	$(CXX) -o $@ -std=c++20 -Wall -W -Wextra -O2 -pipe -march=native $<
+	$(CXX) -o $@ -fsanitize=address,undefined -std=c++20 -Wall -W -Wextra -O2 -pipe -march=native $<
 
 test: engine-parts ../05/sample
 	@./engine-parts ../05/sample

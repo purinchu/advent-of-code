@@ -189,7 +189,11 @@ int main(int argc, char **argv)
                     }
 
                     if (!was_seen && n.y == test_y && test_x >= n.x0 && test_x < n.x1) {
-                        sym.values[sym.num_values++] = &n;
+                        if (sym.num_values < 2) {
+                            sym.values[sym.num_values] = &n; // only room for 2 in the struct
+                        }
+
+                        sym.num_values++;
                     }
                 }
             }
