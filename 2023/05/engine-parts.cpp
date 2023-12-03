@@ -12,7 +12,12 @@
 #include <iostream>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
+
+// config
+
+static const bool debug = false;
 
 // coordinate system:
 // leftmost character is 1, increases by 1 each character going to the right
@@ -20,6 +25,7 @@
 
 using std::uint16_t;
 using std::uint32_t;
+using std::as_const;
 
 // position of a potential match between symbol and number
 // assume no more than 65,536
@@ -53,6 +59,24 @@ static inline match match_from_encoded_pos(symbol_pos p)
     return match(p >> 16, p & 0xFFFF);
 }
 
+static void add_number(const std::string &line, uint16_t x0, uint16_t x1, uint16_t y)
+{
+    number new_num;
+
+    new_num.x0 = x0;
+    new_num.x1 = x1;
+    new_num.y = y;
+
+    (void) std::from_chars(line.data() + x0 - 1, line.data() + x1 - 1, new_num.value);
+
+    numbers.push_back(new_num);
+}
+
+static void add_symbol(uint16_t x, uint16_t y)
+{
+    symbol_matches.emplace(encoded_pos_from_match(match{x, y}));
+}
+
 static void decode_line(const std::string &line)
 {
     static uint16_t y = 0;
@@ -66,7 +90,9 @@ static void decode_line(const std::string &line)
         x++; // new char to process
 
         if(std::isdigit(ch)) {
-            std::cout << "\e[1;31m"; // bold red
+            if constexpr (debug) {
+                std::cout << "\e[1;31m"; // bold red
+            }
 
             if (!in_num) { // newly in number?
                 in_num = true;
@@ -74,25 +100,30 @@ static void decode_line(const std::string &line)
             }
         }
         else {
-            std::cout << (ch == '.' ? "\e[0;38m" : "\e[0;32m"); // gray or green
+            if constexpr (debug) {
+                std::cout << (ch == '.' ? "\e[0;38m" : "\e[0;32m"); // gray or green
+            }
+
             if (in_num) { // newly out of number?
                 in_num = false;
                 x1 = x;
 
-                std::string subst (line, x0 - 1, x1 - x0);
-                number new_num;
-                new_num.x0 = x0;
-                new_num.x1 = x1;
-                new_num.y = y;
-                (void) std::from_chars(line.data() + x0 - 1, line.data() + x1 - 1, new_num.value);
-                numbers.push_back(new_num);
+                add_number(line, x0, x1, y);
+            }
+
+            if (ch != '.') { // symbol
+                add_symbol(x, y);
             }
         }
 
-        std::cout << ch;
+        if constexpr (debug) {
+            std::cout << ch;
+        }
     }
 
-    std::cout << "\e[0m" << std::endl; // reset color
+    if constexpr (debug) {
+        std::cout << "\e[0m" << std::endl; // reset color
+    }
 }
 
 int main(int argc, char **argv)
@@ -126,6 +157,44 @@ int main(int argc, char **argv)
         cerr << "Exception on reading input: " << e.what() << endl;
         return 1;
     }
+
+    if constexpr (debug) {
+        for (const auto &n : as_const(numbers)) {
+            std::cout << n.value << "," << n.x0 << "-" << n.x1 << "," << n.y << "\n";
+        }
+
+        for (const auto &sym : as_const(symbol_matches)) {
+            match m{match_from_encoded_pos(sym)};
+            std::cout << "symbol at " << m.x << "," << m.y << "\n";
+        }
+    }
+
+    // look for matches
+    for (const auto &sym : as_const(symbol_matches)) {
+        match m{match_from_encoded_pos(sym)};
+
+        for (int i = -1; i < 2; i++) {
+            for (int j = -1; j < 2; j++) {
+                uint16_t test_x = m.x + i;
+                uint16_t test_y = m.y + j;
+
+                // ok to be out of bounds, no number will match
+                for (auto &n : numbers) {
+                    n.is_part = n.is_part || (n.y == test_y && test_x >= n.x0 && test_x < n.x1);
+                }
+            }
+        }
+    }
+
+    uint32_t sum = 0;
+
+    for (const auto &n : as_const(numbers)) {
+        if (n.is_part) {
+            sum += n.value;
+        }
+    }
+
+    cout << sum << endl;
 
     return 0;
 }
