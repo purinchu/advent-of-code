@@ -1,9 +1,11 @@
-// AoC 2023 - Puzzle 05
+// AoC 2023 - Puzzle 06
 // This problem requires to read in an input file, a table that includes part
 // numbers mixed with other numbers, periods, or other symbols part numbers are
 // distinguished from other numbers by being adjacent to a symbol diagonals
 // included. periods are not symbols.
-// The puzzle is to determine the sum of all part numbers in the table
+// A 'gear' is a special symbol, a '*' adjacent to exactly 2 different parts.
+// Its gear ratio is the product of the two part numbers.
+// The puzzle is to determine the sum of all gear ratios in the table
 
 #include <cctype>
 #include <charconv>
@@ -47,7 +49,7 @@ struct number {
 using symbol_pos = uint32_t; // encodes (x,y) positions into one value
 
 // global vars
-std::set<symbol_pos> symbol_pointes;
+std::set<symbol_pos> symbol_points;
 std::vector<number> numbers;
 
 static inline symbol_pos encoded_pos_from_point(point m)
@@ -75,7 +77,7 @@ static void add_number(const std::string &line, uint16_t x0, uint16_t x1, uint16
 
 static void add_symbol(uint16_t x, uint16_t y)
 {
-    symbol_pointes.emplace(encoded_pos_from_point(point{x, y}));
+    symbol_points.emplace(encoded_pos_from_point(point{x, y}));
 }
 
 static void decode_line(const std::string &line)
@@ -168,14 +170,14 @@ int main(int argc, char **argv)
             std::cout << n.value << "," << n.x0 << "-" << n.x1 << "," << n.y << "\n";
         }
 
-        for (const auto &sym : as_const(symbol_pointes)) {
+        for (const auto &sym : as_const(symbol_points)) {
             point m{point_from_encoded_pos(sym)};
             std::cout << "symbol at " << m.x << "," << m.y << "\n";
         }
     }
 
     // look for matches
-    for (const auto &sym : as_const(symbol_pointes)) {
+    for (const auto &sym : as_const(symbol_points)) {
         point m{point_from_encoded_pos(sym)};
 
         for (int i = -1; i < 2; i++) {
