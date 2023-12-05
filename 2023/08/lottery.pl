@@ -9,7 +9,7 @@
 # cards are earned.
 # The total number of cards processed is the puzzle's answer.
 
-use 5.036;
+use 5.038;
 use autodie;
 use experimental 'for_list';
 
@@ -46,25 +46,22 @@ while (my $line = <$input_fh>) {
 
 say "card values: ", j \%card_value if $debug;
 
-# Build initial queue
-push @queue, 1..@games;
+my @cards = (1) x @games;
 
-say "queue: ", j \@queue if $debug;
+unshift @cards, 0; # placeholder value to make id num == array idx
 
-my $count = 0;
-while (my $id = shift @queue)
-{
-    my $stop_before = $id + 1 + $card_value{$id};
-    $stop_before = @games if $stop_before > @games;
-
-    for (my $i = $id + 1; $i < $stop_before; $i++) {
-        push @queue, $i;
+for (my $i = 1; $i <= @games; $i++) {
+    say "card $i" if $debug;
+    my $add_amount = $card_value{$i};
+    say "  adding $add_amount cards below $i" if $debug;
+    for (my $j = $i + 1; $j < $i + 1 + $add_amount && $j <= @games; $j++) {
+        $cards[$j] += $cards[$i];
+        say "  added $cards[$i] to card $j" if $debug;
     }
-
-    $count++;
 }
 
-say "Handled $count cards";
+say "card counts: ", j \@cards if $debug;
+say "card total: ", sum @cards;
 
 # Aux subs
 
