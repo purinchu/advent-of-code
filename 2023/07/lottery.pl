@@ -34,9 +34,19 @@ while (my $line = <$input_fh>) {
     read_game($line);
 }
 
-say "Game read in";
-use DDP;
-p @games;
+my $score = 0;
+
+for my $game (@games) {
+    my %scores;
+
+    @scores{@{$game->[0]}} = (1) x @{$game->[0]}; # make winners hash keys
+    my $count = grep { exists $scores{$_} } @{$game->[1]};
+
+    next unless $count;
+    $score += 1 << ($count - 1);
+}
+
+say $score;
 
 # Aux subs
 
