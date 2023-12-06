@@ -21,8 +21,7 @@ $" = ', '; # For arrays interpolated into strings
 my @seeds;       # seed ids
 
 my %name_maps;   # name of dest map for src
-
-my %id_maps;     # src name holds map of src-id to dest-id
+my %id_maps;     # src name holds map of src-id to [$start, $len, $offset]
 
 my $src;         # controls where maps are read in
 my $dest;
@@ -42,7 +41,7 @@ while (my $line = <$input_fh>) {
         ($src, $dest) = $line =~ /^([^-]+)-to-([^ ]+) map:/;
         say "$src to $dest" if $debug;
         $name_maps{$src} = $dest;
-        $id_maps  {$src} = { };
+        $id_maps  {$src} = [ ];
     } else {
         read_map_range($src, $dest, $line);
     }
@@ -71,9 +70,13 @@ sub read_map_range($src, $dest, $line)
 
     say "$len items zipped starting at $src_start->$dest_start" if $debug;
 
-    for (my $i = 0; $i < $len; $i++) {
-        $id_ref->{$src_start + $i} = $dest_start + $i;
-    }
+    my $start = int $src_start;
+
+    # Look for overlap with existing src-to-dest maps, which may be a problem
+    my ($match) = grep { $start >= $_->[0] && ($start - $_->[0]) < $_->[1] } $id_maps{$src}->@*;
+    die "Overlap found $src->$dest at id $start" if $match;
+
+    push @$id_ref, [int $src_start, int $len, $dest_start - $src_start];
 }
 
 sub location_from_seed($seed)
@@ -85,10 +88,12 @@ sub location_from_seed($seed)
         my $cur_dest = $name_maps{$cur_source};
         print "$cur_source $id, " if $debug;
 
-        $id = $id_maps{$cur_source}->{$id} // $id;
+        my ($match) = grep { $id >= $_->[0] && ($id - $_->[0]) < $_->[1] } $id_maps{$cur_source}->@*;
+        my $offset = $match->[2] // 0;
+        $id = $id + $offset;
         $cur_source = $cur_dest;
     }
 
-    print "\n" if $debug;
+    print "location $id\n" if $debug;
     return $id;
 }
