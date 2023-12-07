@@ -30,9 +30,9 @@ while (my $line = <$input_fh>) {
     read_hand($line);
 }
 
-grade_hand_tier($_) foreach keys %hands;
-
 my @ordered_hands = sort { score_hands($a, $b) } keys %hands;
+
+# $debug = 1; grade_hand_tier($_) foreach @ordered_hands;
 
 my $sum = 0;
 for (my $i = 0; $i < @ordered_hands; $i++) {
@@ -76,7 +76,7 @@ sub grade_hand_tier($hand)
     my @result = reverse sort values %counts;
 
     my $lookup = $result[0] * 2 + (($result[1] // 0) == 2);
-#   say "$hand: $labels[$lookup], tier $grades[$lookup]";
+    say "$hand: $labels[$lookup], tier $grades[$lookup]" if $debug;
 
     return $grades[$lookup];
 }
@@ -112,7 +112,7 @@ sub score_hands($ha, $hb)
     my @letters_b = split('', $hb);
 
     for (my $i = 0; $i < 5; $i++) {
-        $score = score_card($letters_a[$i], $letters_b[1]);
+        $score = score_card($letters_a[$i], $letters_b[$i]);
         return $score if $score != 0;
     }
 
