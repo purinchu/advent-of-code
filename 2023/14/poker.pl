@@ -32,7 +32,7 @@ while (my $line = <$input_fh>) {
 
 my @ordered_hands = sort { score_hands($a, $b) } keys %hands;
 
-$debug = 1; grade_hand_tier($_) foreach @ordered_hands;
+# $debug = 1; grade_hand_tier($_) foreach @ordered_hands;
 
 my $sum = 0;
 for (my $i = 0; $i < @ordered_hands; $i++) {
@@ -73,9 +73,12 @@ sub grade_hand_tier($hand)
 
     my %counts;
     $counts{$_}++ foreach split('', $hand);
+    my $num_jokers = $counts{'J'} // 0;
+    delete $counts{'J'} if $num_jokers;
+
     my @result = reverse sort values %counts;
 
-    my $lookup = $result[0] * 2 + (($result[1] // 0) == 2);
+    my $lookup = (($result[0] // 0) + $num_jokers) * 2 + (($result[1] // 0) == 2);
     say "$hand: $labels[$lookup], tier $grades[$lookup]" if $debug;
 
     return $grades[$lookup];
