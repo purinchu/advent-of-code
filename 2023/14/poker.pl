@@ -73,8 +73,7 @@ sub grade_hand_tier($hand)
 
     my %counts;
     $counts{$_}++ foreach split('', $hand);
-    my $num_jokers = $counts{'J'} // 0;
-    delete $counts{'J'} if $num_jokers;
+    my $num_jokers = delete $counts{'J'} // 0;
 
     my @result = reverse sort values %counts;
 
