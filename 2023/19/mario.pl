@@ -16,7 +16,7 @@ use POSIX qw(ceil);
 use Term::ANSIColor qw(:constants);
 
 # Config
-use constant G_DEBUG_INTERMEDIATE => 1;
+use constant G_DEBUG_INTERMEDIATE => 0;
 use constant G_DEBUG_INPUT => 0;
 my $input_name = @ARGV ? $ARGV[0] : 'input';
 $" = ', '; # For arrays interpolated into strings
