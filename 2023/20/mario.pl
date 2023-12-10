@@ -175,30 +175,20 @@ sub explore_maze($maze, $stride, $rows)
     };
 
     my $show = sub {
-        for (my $j = 0; $j <= $rows + 1; $j++) {
-            my $inside = 0;
-            my $last = -10;
-
-            for (my $i = 0; $i <= $stride + 1; $i++) {
+        for (my $j = 1; $j <= $rows; $j++) {
+            for (my $i = 1; $i <= $stride; $i++) {
                 my $col = defined $len->($i, $j) ? GREEN : RESET;
-                $col = RESET if ($len->($i, $j) // 1) == -10;
                 print $col . $char_at->($i, $j);
             }
 
             print RESET . "\t\t";
 
-            for (my $i = 0; $i <= $stride + 1; $i++) {
-                my $val = $len->($i, $j);
-                if (abs($val - $last) >= 2) {
-                    $inside = 1 - $inside;
-                }
-                $last = $val;
-
-                print ($inside ? BRIGHT_GREEN : BRIGHT_RED);
-                print sprintf("%03d ", $val) if $val ne '.';
-                print RESET . sprintf(" .  ") . RESET if $val eq '.';
+            for (my $i = 1; $i <= $stride; $i++) {
+                my $val = $len->($i, $j) // '.';
+                print sprintf("%03d ", $len->($i, $j)) if $val ne '.';
+                print BLUE . sprintf(" .  ") . RESET if $val eq '.';
             }
-            print RESET . "\n";
+            print "\n";
         }
         print "\n";
     };
@@ -269,11 +259,22 @@ sub explore_maze($maze, $stride, $rows)
 #        }
 #    }
 
+    $show->() if G_DEBUG_FINAL;
+
+    # ANY piece of pipe not attached to the main loop can count as
+    # area inside the loop for purposes of the puzzle. To avoid having
+    # to separate between them, turn all pipe pieces not in the loop into
+    # a '.'
+    for (my $i = 0; $i < @lengths; $i++) {
+        my $len = $lengths[$i];
+        if (!defined $len && index('JF7L-|', substr($maze, $i, 1)) != -1) {
+            substr($maze, $i, 1, '.');
+        }
+    }
+
     for my $foo (@lengths) {
         $foo //= -10;
     }
-
-    $show->() if G_DEBUG_FINAL;
 
     # oh yeah...
     my $maze2;
