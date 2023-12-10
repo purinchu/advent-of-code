@@ -163,6 +163,71 @@ sub next_steps($maze, $stride, $x, $y, $from, $len)
     return @steps;
 }
 
+# Expands the give maze into a bigger one with connecting piping between
+# appropriate pieces, so that the bigger one can be flood-filled. You should
+# have already removed junk pipe pieces that aren't part of the final loop.
+sub bloat_maze($maze, $stride, $rows)
+{
+    my $can = sub($c, $dir) {
+        state %dirs = ( E => '-FLS', W => 'J-7S', N => 'J|LS', S => 'F|7S' );
+        return index($dirs{$dir}, $c) != -1;
+    };
+
+    my $char_at = sub($x, $y) { char_at($maze, $stride, $x, $y); };
+
+    my $result;
+    my $c = $char_at->(0, 0);
+    my $was_c = $c;
+
+    # We know the first row/col will be blank spaces, this can simplify
+    # printing
+
+    # First row, special case
+    $result .= $c;
+    for (my $cx = 1; $cx < $stride + 2; $cx++) {
+        $c = $char_at->($cx, 0);
+
+        $result .= " $c";
+    }
+
+    for (my $cy = 1; $cy < $rows + 2; $cy++) {
+        # interstitial row between value rows
+
+        # first column, again a special case.
+        $result .= " ";
+
+        # remaining columns of interstitial
+        for (my $cx = 1; $cx < $stride + 2; $cx++) {
+            my $above_c = $char_at->($cx, $cy - 1);
+            $c = $char_at->($cx, $cy);
+            my $char = ($can->($above_c, 'S') && $can->($c, 'N'))
+                ? " |"
+                : "  ";
+
+            $result .= $char;
+        }
+
+        # value row
+
+        # first column, again a special case.
+        $c = $char_at->(0, $cy);
+
+        $result .= $c;
+
+        for (my $cx = 1; $cx < $stride + 2; $cx++) {
+            $c = $char_at->($cx, $cy);
+            my $char = ($can->($was_c, 'E') && $can->($c, 'W'))
+                ? "-$c"
+                : " $c";
+
+            $result .= $char;
+            $was_c = $c;
+        }
+    }
+
+    return $result;
+}
+
 sub explore_maze($maze, $stride, $rows)
 {
     my @lengths = (undef) x length($maze); # hold data on lengths
@@ -220,26 +285,6 @@ sub explore_maze($maze, $stride, $rows)
     # Now that maze is mapped out, look for trapped cells by flood fill
     # starting from the padding.
 
-    # First fix the 'S' to be part of the loop
-    my $start_dirs;
-    $start_dirs .= 'E' if (($len->($x + 1, $y    ) // 0) == 1);
-    $start_dirs .= 'N' if (($len->($x    , $y - 1) // 0) == 1);
-    $start_dirs .= 'S' if (($len->($x    , $y + 1) // 0) == 1);
-    $start_dirs .= 'W' if (($len->($x - 1, $y    ) // 0) == 1);
-    die "Invalid start! $start_dirs"
-        unless length($start_dirs) == 2;
-
-    state %fixed_start = (
-        EN => 'L',
-        ES => 'F',
-        EW => '-',
-        NS => '|',
-        NW => 'J',
-        SW => '7',
-    );
-
-    $set_char->($x, $y, $fixed_start{$start_dirs});
-
     $show->() if G_DEBUG_FINAL;
 
     # ANY piece of pipe not attached to the main loop can count as
@@ -257,91 +302,8 @@ sub explore_maze($maze, $stride, $rows)
         $foo //= -10;
     }
 
-    # oh yeah...
-    my $maze2;
-    open my $fh, '>', \$maze2;
-
-    state %can_east = (
-        '-' => 1,
-        'F' => 1,
-        'L' => 1,
-    );
-    state %can_west = (
-        'J' => 1,
-        '-' => 1,
-        '7' => 1,
-    );
-    state %can_north = (
-        'J' => 1,
-        '|' => 1,
-        'L' => 1,
-    );
-    state %can_south = (
-        'F' => 1,
-        '|' => 1,
-        '7' => 1,
-    );
-
-    my $c = $char_at->(0, 0);
-    my $l = $len->(0, 0);
-    my $in = ($l // -1) >= 0;
-    my $was_in = $in;
-    my $was_c = $c;
-
-    # We know the first row/col will be blank spaces, this can simplify
-    # printing
-
-    # First row, special case
-    print $fh $c;
-    for (my $cx = 1; $cx < $stride + 2; $cx++) {
-        $c = $char_at->($cx, 0);
-
-        print $fh " $c";
-    }
-
-    for (my $cy = 1; $cy < $rows + 2; $cy++) {
-        # interstitial row between value rows
-
-        # first column, again a special case.
-        print $fh " ";
-
-        # remaining columns of interstitial
-        for (my $cx = 1; $cx < $stride + 2; $cx++) {
-            my $above_c = $char_at->($cx, $cy - 1);
-            $c = $char_at->($cx, $cy);
-
-            if ($can_south{$above_c} && $can_north{$c}) {
-                print $fh " |";
-            }
-            else {
-                print $fh "  ";
-            }
-        }
-
-        # value row
-
-        # first column, again a special case.
-        $c = $char_at->(0, $cy);
-
-        print $fh $c;
-
-        for (my $cx = 1; $cx < $stride + 2; $cx++) {
-            $c = $char_at->($cx, $cy);
-
-            if ($can_east{$was_c} && $can_west{$c}) {
-                # connecting pipe, loop status unchanged
-                print $fh "-$c";
-            }
-            else {
-
-                print $fh " $c";
-            }
-
-            $was_c = $c;
-        }
-    }
-
-    close $fh;
+    # expand puzzle into something we can flood fill
+    my $maze2 = bloat_maze($maze, $stride, $rows);
 
     my $new_stride = ($stride + 2) * 2 - 1;
     my $new_rows = ($rows + 2) * 2 - 1;
