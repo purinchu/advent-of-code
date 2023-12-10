@@ -17,7 +17,7 @@ use Term::ANSIColor qw(:constants);
 
 # Config
 use constant G_DEBUG_INTERMEDIATE => 0;
-use constant G_DEBUG_FINAL => 1;
+use constant G_DEBUG_FINAL => 0;
 use constant G_DEBUG_INPUT => 0;
 my $input_name = @ARGV ? $ARGV[0] : '../19/input';
 $" = ', '; # For arrays interpolated into strings
@@ -240,25 +240,6 @@ sub explore_maze($maze, $stride, $rows)
 
     $set_char->($x, $y, $fixed_start{$start_dirs});
 
-#    push @queue, [0, 0];
-#    while (@queue) {
-#        my ($x, $y) = @{shift @queue};
-#        next if defined $len->($x, $y);
-#
-#        # No fill, give it one
-#        $set_char->($x, $y, 'r');
-#
-#        for my $dx (($x-1)..($x+1)) {
-#            for my $dy (($y-1)..($y+1)) {
-#                next if ($dx == $x && $dy == $y);
-#                next if ($dx < 0 || $dy < 0 || $dx > ($stride + 1) || $dy > ($rows + 1));
-#                next if defined $len->($dx, $dy);
-#                next if $char_at->($dx, $dy) eq 'r';
-#                push @queue, [$dx, $dy];
-#            }
-#        }
-#    }
-
     $show->() if G_DEBUG_FINAL;
 
     # ANY piece of pipe not attached to the main loop can count as
@@ -318,26 +299,18 @@ sub explore_maze($maze, $stride, $rows)
         print $fh " $c";
     }
 
-#   print "\n";
-
     for (my $cy = 1; $cy < $rows + 2; $cy++) {
         # interstitial row between value rows
 
         # first column, again a special case.
         print $fh " ";
 
-        my $in_loop = 0;
-
         # remaining columns of interstitial
         for (my $cx = 1; $cx < $stride + 2; $cx++) {
             my $above_c = $char_at->($cx, $cy - 1);
-            my $above_l = $len->($cx, $cy - 1);
-            my $above_in = ($above_l // -1) >= 0;
             $c = $char_at->($cx, $cy);
-            $l = $len->($cx, $cy);
-            $in = ($l // -1) >= 0;
 
-            if ($above_in && $in && $can_south{$above_c} && $can_north{$c}) {
+            if ($can_south{$above_c} && $can_north{$c}) {
                 print $fh " |";
             }
             else {
@@ -345,80 +318,47 @@ sub explore_maze($maze, $stride, $rows)
             }
         }
 
-#       print "\n";
-
-        $in_loop = 0;
-
         # value row
 
         # first column, again a special case.
         $c = $char_at->(0, $cy);
-        $l = $len->(0, $cy);
-        $in = ($l // -1) >= 0;
-        $was_in = 0;
-        $in_loop = 0;
 
         print $fh $c;
 
         for (my $cx = 1; $cx < $stride + 2; $cx++) {
             $c = $char_at->($cx, $cy);
-            $l = $len->($cx, $cy);
-            $in = ($l // -1) >= 0;
-            my $clr = RESET;
 
-            if ($in && !$was_in) {
-                # coming into the loop boundary
-                print $fh " $c";
-            }
-            elsif (!$in && $was_in) {
-                # exiting the loop boundary. Interstitial may or may not
-                # have been inside
-                print $fh " $c";
-            }
-            elsif ($can_east{$was_c} && $can_west{$c}) {
+            if ($can_east{$was_c} && $can_west{$c}) {
                 # connecting pipe, loop status unchanged
                 print $fh "-$c";
             }
-            elsif (!$in && !$was_in) {
-#               $clr = RESET;
-                print $fh " $c";
-            }
             else {
-                # both were in but no direct connection,
-                # interstitial will be opposite of how we came into the
-                # piping on the left
 
                 print $fh " $c";
             }
 
-            $was_in = $in;
             $was_c = $c;
-
-#           my $clr = ($in_loop % 2) ? BRIGHT_RED : RESET;
-#           print "$c";
         }
-
-#       print "\n";
     }
 
     close $fh;
+
     my $new_stride = ($stride + 2) * 2 - 1;
     my $new_rows = ($rows + 2) * 2 - 1;
 
-    open my $out, '>', 'output';
-    for (my $yy = 0; $yy < $new_rows; $yy++) {
-        say $out substr($maze2, $yy * $new_stride, $new_stride)
+    if (G_DEBUG_FINAL) {
+        for (my $yy = 0; $yy < $new_rows; $yy++) {
+            say substr($maze2, $yy * $new_stride, $new_stride)
+        }
     }
-
-    say $out "";
 
     my $maze3 = flood_fill($maze2, $new_stride, $new_rows, 0, 0, '@');
 
-    for (my $yy = 0; $yy < $new_rows; $yy++) {
-        say $out substr($maze3, $yy * $new_stride, $new_stride)
+    if (G_DEBUG_FINAL) {
+        for (my $yy = 0; $yy < $new_rows; $yy++) {
+            say substr($maze3, $yy * $new_stride, $new_stride)
+        }
     }
-
-    close $out;
 
     my $count = grep { $_ eq '.' } split('', $maze3);
     say "$count entries unscathed.";
