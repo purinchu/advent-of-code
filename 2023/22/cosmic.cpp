@@ -4,6 +4,7 @@
 // paths among.
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
@@ -16,23 +17,22 @@
 
 // config
 
-static const bool show_table = false;
 static const bool show_pairs = false;
+static const bool show_inflation = false;
 static const bool show_per_dist = false;
 
 // coordinate system:
 // leftmost character is 0, increases by 1 each character going to the right
 // topmost character is 0, increases by 1 each additional line down
 
-using std::uint16_t;
 using std::uint32_t;
 using std::as_const;
 
 // We are to read in galaxies from a file. But we just need to find distances
 // between pairs of galaxies, we don't actually need to retain the entire table
 // of input, just the list of galaxies.
-using col_t = uint16_t;
-using row_t = uint16_t;
+using col_t = uint32_t;
+using row_t = uint32_t;
 using galaxy = std::pair<col_t, row_t>;
 using gal_list = std::vector<galaxy>;
 using gal_pair = std::pair<int, int>; // A pair of galaxy IDs in the vector
@@ -42,6 +42,8 @@ using gal_pair_list = std::vector<gal_pair>;
 gal_list g_galaxies;
 std::set<col_t> g_seen_columns;
 col_t g_max_col = 0; // Exclusive, not inclusive
+unsigned g_inflated_rows = 0;
+int g_inflation_mult = 2;
 
 static void decode_line(const std::string &line)
 {
@@ -59,7 +61,8 @@ static void decode_line(const std::string &line)
 
     // first check for galaxy-expanded line
     if (line.find('#') == string::npos) {
-        y++; // implicitly add empty line
+        y += (g_inflation_mult - 1); // implicitly add empty lines
+        g_inflated_rows++;
     }
     else {
         for (auto ch : line) {
@@ -89,7 +92,7 @@ static void inflate_columns()
             cur_inflation++;
         }
 
-        inflate_amount[col_id] = cur_inflation;
+        inflate_amount[col_id] = cur_inflation * (g_inflation_mult - 1);
     }
 
     // Now that we know how much inflation to perform, perform it
@@ -98,8 +101,12 @@ static void inflate_columns()
         x += inflate_amount[x];
     }
 
+    if constexpr (show_inflation) {
+        std::cout << "Maximum col inflation seen was " << cur_inflation << "\n";
+    }
+
     // Update global tracking vars
-    g_max_col += cur_inflation;
+    g_max_col += cur_inflation * (g_inflation_mult - 1);
 }
 
 static gal_pair_list build_galaxy_pairs()
@@ -118,47 +125,6 @@ static gal_pair_list build_galaxy_pairs()
     return result;
 }
 
-// Re-output galaxy map in fashion it was read-in
-static void show_pretty_galaxy()
-{
-    // sort by x and then by y so we can output easily
-    std::sort(g_galaxies.begin(), g_galaxies.end(),
-            [](const galaxy &l, const galaxy &r) { return l.first < r.first; });
-    std::stable_sort(g_galaxies.begin(), g_galaxies.end(),
-            [](const galaxy &l, const galaxy &r) { return l.second < r.second; });
-
-    col_t y = 0;
-    row_t x = 0;
-
-    for (const auto &g : as_const(g_galaxies)) {
-        const auto &[g_x, g_y] = g;
-
-        // get on right line
-        while (y < g_y) {
-            while (x++ < g_max_col) {
-                std::cout << '.';
-            }
-            std::cout << "\n";
-            x = 0;
-            y++;
-        }
-
-        // on the right line, print up until galaxy
-        while (x++ < g_x) {
-            std::cout << '.';
-        }
-
-        std::cout << '#';
-    }
-
-    // fill in final line
-    while (x++ < g_max_col) {
-        std::cout << '.';
-    }
-
-    std::cout << "\n";
-}
-
 // Return distance in discrete steps between galaxies
 // Sounds complicated perhaps, but it's literally just the manhattan distance
 // if you think a bit about it.
@@ -168,8 +134,8 @@ static unsigned line_distance(const galaxy &g1, const galaxy &g2)
 
     const auto &[g1_x, g1_y] = g1;
     const auto &[g2_x, g2_y] = g2;
-    const uint16_t dx = abs(g2_x - g1_x);
-    const uint16_t dy = abs(g2_y - g1_y);
+    const uint32_t dx = abs((long)g2_x - (long)g1_x);
+    const uint32_t dy = abs((long)g2_y - (long)g1_y);
 
     return dx + dy;
 }
@@ -193,6 +159,14 @@ int main(int argc, char **argv)
     input.exceptions(ifstream::badbit);
 
     try {
+        if (argc >= 3) {
+            g_inflation_mult = std::stoi(argv[2]);
+            if (g_inflation_mult < 0 || g_inflation_mult >= 5000000) {
+                cerr << "You may have typed in inflation mult wrong, exiting.\n";
+                return 1;
+            }
+        }
+
         input.open(argv[1]);
         string line;
         while (!input.eof() && std::getline(input, line)) {
@@ -205,15 +179,19 @@ int main(int argc, char **argv)
         cerr << "Exception on reading input: " << e.what() << endl;
         return 1;
     }
+    catch (...) {
+        cerr << "Something else went wrong..." << endl;
+        return 1;
+    }
+
+    if constexpr (show_inflation) {
+        std::cout << "Maximum row inflation seen was " << g_inflated_rows << "\n";
+    }
 
     inflate_columns();
 
-    if constexpr (show_table) {
-        show_pretty_galaxy();
-    }
-
     const gal_pair_list galaxy_pairs = build_galaxy_pairs();
-    uint32_t total_distances = 0;
+    uint64_t total_distances = 0;
 
     if constexpr (show_pairs) {
         std::cout << "\nThere are " << galaxy_pairs.size() << " pairs.\n";
