@@ -47,7 +47,6 @@ int g_inflation_mult = 2;
 
 static void decode_line(const std::string &line)
 {
-    using std::make_pair;
     using std::string;
 
     static row_t y = 0;
@@ -67,7 +66,7 @@ static void decode_line(const std::string &line)
     else {
         for (auto ch : line) {
             if(ch == '#') {
-                g_galaxies.emplace_back(make_pair(x, y));
+                g_galaxies.emplace_back(x, y);
                 g_seen_columns.insert(x);
             }
 
