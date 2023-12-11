@@ -16,6 +16,7 @@
 // config
 
 static const bool show_table = true;
+static const bool show_pairs = true;
 
 // coordinate system:
 // leftmost character is 0, increases by 1 each character going to the right
@@ -33,6 +34,7 @@ using row_t = uint16_t;
 using galaxy = std::pair<col_t, row_t>;
 using gal_list = std::vector<galaxy>;
 using gal_pair = std::pair<int, int>; // A pair of galaxy IDs in the vector
+using gal_pair_list = std::vector<gal_pair>;
 
 // global vars
 gal_list g_galaxies;
@@ -96,6 +98,22 @@ static void inflate_columns()
 
     // Update global tracking vars
     g_max_col += cur_inflation;
+}
+
+static gal_pair_list build_galaxy_pairs()
+{
+    gal_pair_list result;
+    const auto num_gal = g_galaxies.size();
+
+    result.reserve(num_gal * num_gal);
+
+    for (size_t i = 0; i < num_gal; i++) {
+        for (size_t j = i + 1; j < num_gal; j++) {
+            result.emplace_back(i, j);
+        }
+    }
+
+    return result;
 }
 
 // Re-output galaxy map in fashion it was read-in
@@ -175,6 +193,22 @@ int main(int argc, char **argv)
 
     if constexpr (show_table) {
         show_pretty_galaxy();
+    }
+
+    const gal_pair_list galaxy_pairs = build_galaxy_pairs();
+
+    if constexpr (show_pairs) {
+        std::cout << "\nThere are " << galaxy_pairs.size() << " pairs.\n";
+        for (const auto &p : galaxy_pairs) {
+            const auto &[gal1, gal2] = p;
+            std::cout << "\t[" << gal1 << ", " << gal2 << "]: ";
+
+            const auto &[gal1_x, gal1_y] = g_galaxies[gal1];
+            const auto &[gal2_x, gal2_y] = g_galaxies[gal2];
+
+            std::cout << "(" << gal1_x << "," << gal1_y << ") to ";
+            std::cout << "(" << gal2_x << "," << gal2_y << ").\n";
+        }
     }
 
     return 0;
