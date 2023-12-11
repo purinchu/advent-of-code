@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -15,8 +16,9 @@
 
 // config
 
-static const bool show_table = true;
-static const bool show_pairs = true;
+static const bool show_table = false;
+static const bool show_pairs = false;
+static const bool show_per_dist = false;
 
 // coordinate system:
 // leftmost character is 0, increases by 1 each character going to the right
@@ -157,6 +159,21 @@ static void show_pretty_galaxy()
     std::cout << "\n";
 }
 
+// Return distance in discrete steps between galaxies
+// Sounds complicated perhaps, but it's literally just the manhattan distance
+// if you think a bit about it.
+static unsigned line_distance(const galaxy &g1, const galaxy &g2)
+{
+    using std::abs;
+
+    const auto &[g1_x, g1_y] = g1;
+    const auto &[g2_x, g2_y] = g2;
+    const uint16_t dx = abs(g2_x - g1_x);
+    const uint16_t dy = abs(g2_y - g1_y);
+
+    return dx + dy;
+}
+
 int main(int argc, char **argv)
 {
     using std::cerr;
@@ -196,6 +213,7 @@ int main(int argc, char **argv)
     }
 
     const gal_pair_list galaxy_pairs = build_galaxy_pairs();
+    uint32_t total_distances = 0;
 
     if constexpr (show_pairs) {
         std::cout << "\nThere are " << galaxy_pairs.size() << " pairs.\n";
@@ -210,6 +228,20 @@ int main(int argc, char **argv)
             std::cout << "(" << gal2_x << "," << gal2_y << ").\n";
         }
     }
+
+    for (const auto &p : galaxy_pairs) {
+        const auto &[gal1, gal2] = p;
+        const auto d = line_distance(g_galaxies[gal1], g_galaxies[gal2]);
+
+        if constexpr (show_per_dist) {
+            std::cout << "Distance for " << gal1 << " to " << gal2
+                << " was " << d << "\n";
+        }
+
+        total_distances += d;
+    }
+
+    std::cout << total_distances << "\n";
 
     return 0;
 }
