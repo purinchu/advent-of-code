@@ -298,10 +298,6 @@ sub explore_maze($maze, $stride, $rows)
         }
     }
 
-    for my $foo (@lengths) {
-        $foo //= -10;
-    }
-
     # expand puzzle into something we can flood fill
     my $maze2 = bloat_maze($maze, $stride, $rows);
 
