@@ -3,6 +3,7 @@
 // lists information about astronomical readings to find shortest
 // paths among.
 
+#include <algorithm>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
@@ -92,6 +93,50 @@ static void inflate_columns()
         auto &[x, y] = galaxy;
         x += inflate_amount[x];
     }
+
+    // Update global tracking vars
+    g_max_col += cur_inflation;
+}
+
+// Re-output galaxy map in fashion it was read-in
+static void show_pretty_galaxy()
+{
+    // sort by x and then by y so we can output easily
+    std::sort(g_galaxies.begin(), g_galaxies.end(),
+            [](const galaxy &l, const galaxy &r) { return l.first < r.first; });
+    std::stable_sort(g_galaxies.begin(), g_galaxies.end(),
+            [](const galaxy &l, const galaxy &r) { return l.second < r.second; });
+
+    col_t y = 0;
+    row_t x = 0;
+
+    for (const auto &g : as_const(g_galaxies)) {
+        const auto &[g_x, g_y] = g;
+
+        // get on right line
+        while (y < g_y) {
+            while (x++ < g_max_col) {
+                std::cout << '.';
+            }
+            std::cout << "\n";
+            x = 0;
+            y++;
+        }
+
+        // on the right line, print up until galaxy
+        while (x++ < g_x) {
+            std::cout << '.';
+        }
+
+        std::cout << '#';
+    }
+
+    // fill in final line
+    while (x++ < g_max_col) {
+        std::cout << '.';
+    }
+
+    std::cout << "\n";
 }
 
 int main(int argc, char **argv)
@@ -129,10 +174,7 @@ int main(int argc, char **argv)
     inflate_columns();
 
     if constexpr (show_table) {
-        for (const auto &n : as_const(g_galaxies)) {
-            const auto &[x, y] = n;
-            std::cout << "Galaxy at " << x << ", " << y << "\n";
-        }
+        show_pretty_galaxy();
     }
 
     return 0;
