@@ -10,7 +10,7 @@ use autodie;
 use experimental 'for_list';
 
 use Math::BigInt;
-use List::Util qw(min max sum reduce);
+use List::Util qw(min max sum reduce none);
 use Mojo::JSON qw(j);
 use POSIX qw(ceil);
 use Term::ANSIColor qw(:constants);
@@ -19,6 +19,9 @@ use Term::ANSIColor qw(:constants);
 use constant G_DEBUG_INPUT => 0;
 use constant G_DEBUG_ROWS => 0;
 use constant G_DEBUG_MASK => 0;
+use constant G_DEBUG_RESULTS => 0;
+use constant G_DEBUG_COMBINATORICS => 0;
+
 my $input_name = 'input';
 $" = ', '; # For arrays interpolated into strings
 
@@ -49,26 +52,107 @@ for my $row (@rows) {
     my ($template, @partlens) = $row->@*;
     my @valid = generate_valid_rows($template, @partlens);
     $sum += @valid;
-    print sprintf("%-${maxmask}s: ", $template), scalar @valid, " options for ";
-    say "[@partlens]";
+
+    if (G_DEBUG_RESULTS) {
+        print sprintf("%-${maxmask}s: ", $template), scalar @valid, " options for ";
+        say "[@partlens]";
+    }
 }
 
 say $sum;
 
 # Aux subs
 
+sub factorial($n)
+{
+    my $ident = 1;
+    $ident *= $n-- while $n > 1;
+    return $ident;
+}
+
+sub fix_carry($maxlen, $extra_room, @subparts)
+{
+    my $idx = 0; # least-significant
+    my @p = @subparts; # defensive copy
+
+    # stop before last (most-significant) index reached
+    while($idx < $#p) {
+        if ($p[$idx] > $extra_room) {
+            $p[$idx + 1]++;
+
+            # reset... can't be zero because subpart must exist
+            @p[0..$idx] = (1) x ($idx + 1);
+        }
+
+        $idx++;
+    }
+
+    return @p;
+}
+
+sub generate_all_options($maxlen, @partlens)
+{
+    my $partssum = sum @partlens;
+    my $extra_room = $maxlen - $partssum - (@partlens - 1) + 1;
+    my @subparts = (1) x (@partlens - 1);
+    my @opts;
+
+    # make all possible interiors. We'll then 'float' these into any
+    # begin/end padding later
+    if (@subparts) {
+        while($subparts[$#subparts] <= $extra_room) {
+            push @opts, [@subparts];
+            $subparts[0]++;
+            @subparts = fix_carry($maxlen, $extra_room, @subparts);
+        }
+
+        # remove impossible candidates
+        @opts = grep { none { $_ == 0 } $_->@* } @opts;
+        @opts = grep { (sum ($_->@*) + sum @partlens) <= $maxlen } @opts;
+    }
+
+    my @results;
+
+    # turn generated interstitial lengths into candidate strings
+    for my $opt (@opts) {
+        my $total = $partssum + sum $opt->@*;
+
+        # handle all possibilities of start/end padding for floating parts
+        for (my $pad = 0; $pad <= ($maxlen - $total); $pad++) {
+            my $str = '.' x $pad;
+            $str .= '#' x $partlens[0];
+
+            for (my $idx = 1; $idx < @partlens; $idx++) {
+                $str .= '.' x $opt->[$idx - 1];
+                $str .= '#' x $partlens[$idx];
+            }
+
+            $str .= '.' x ($maxlen - $total - $pad);
+
+            push @results, $str;
+        }
+    }
+
+    return @results;
+}
+
 # Generates all potentially-valid rows that meet restrictions of the
 # template
 sub generate_valid_rows($template, @partlens)
 {
     my $maxlen = length $template;
-    my $minlen = sum(@partlens) + (@partlens - 1);
 
-    my %ok_rows; # store as hash keys for free de-dup
+    my @rows = generate_all_options($maxlen, @partlens);
 
-    for (my $i = 0; $i <= ($maxlen - $minlen); $i++) {
-        my @rows = generate_rows_with_padding($i, $template, @partlens);
-        @ok_rows{@rows} = (1) x @rows;
+    if (G_DEBUG_COMBINATORICS) {
+        my $num_opts = $maxlen - sum(@partlens) + 1;
+        my $num_parts = scalar @partlens;
+        my $num_combinations = factorial($num_opts) / (factorial($num_parts) * factorial($num_opts - $num_parts));
+        my $num_made = scalar @rows;
+        say "$num_made generated for $template / @partlens";
+        say "In theory, there should be $num_combinations options...";
+        die "Didn't generate all possibilities for $template! Made $num_made vice $num_combinations!"
+            unless $num_made == $num_combinations;
     }
 
     # These were all possible rows, now we need to make sure they
@@ -79,10 +163,14 @@ sub generate_valid_rows($template, @partlens)
 
     my $re = qr/^$mask_re$/;
 
-    my @valid = grep { /$re/ } keys %ok_rows;
+    my @valid = grep { /$re/ } @rows;
 
     if (G_DEBUG_MASK) {
-        my @invalid = grep { ! (/$re/) } keys %ok_rows;
+        my @invalid = grep { ! (/$re/) } @rows;
+
+        say "======================================";
+        say BRIGHT_YELLOW, $template, RED, " @partlens", RESET;
+        say BRIGHT_YELLOW, (scalar @rows), " unique combinations:", RESET;
 
         say "These entries were flagged as invalid:";
         foreach (sort @invalid) {
@@ -100,59 +188,4 @@ sub generate_valid_rows($template, @partlens)
     }
 
     return @valid;
-}
-
-# Generates all possible rows of same length as $template, with consecutive
-# runs of springs in the rows of part lengths gives by @partlens and with
-# start/end padding as specified.
-sub generate_rows_with_padding($pad_len, $template, @partlens)
-{
-    my @startlens; # Fixed at beginning
-    my @endlens = @partlens; # Fixed at end
-    my $maxlen = length ($template) - $pad_len;
-    my $padding = '.' x $pad_len;
-
-    my @rows;
-
-    my $cur_len = shift @endlens;
-    while ($cur_len) {
-        # fix the end bounds
-        my $start = join('.', map { '#' x $_ } @startlens);
-        my $end   = join('.', map { '#' x $_ } @endlens);
-
-        # ensure these are broken off from mid
-        $start = "$start." if $start;
-        $end = ".$end" if $end;
-
-        my $piece = '#' x $cur_len;
-
-        my $len_remaining = $maxlen - (length "$start$end");
-
-        if (G_DEBUG_ROWS) {
-            say "Can try up to $len_remaining positions to fit $cur_len into [$start ... $end] / [", length $start, ",", length $end, "]";
-            say "\tlengths: rem: $len_remaining, max $maxlen, start+end, ", (length "$start$end");
-        }
-
-        for (my $offset = 0; $offset <= ($len_remaining - $cur_len); $offset++) {
-            my $pad = '.' x $offset;
-            my $endpad = '.' x ($len_remaining - $cur_len - $offset);
-            my $row = "$pad$piece$endpad";
-
-            # start and end already include stand-off padding
-            $row = "$start$row" if $start;
-            $row = "$row$end" if $end;
-
-            # but need to account for potential non-use at far ends
-            for (my $p = 0; $p <= $pad_len; $p++) {
-                my $startpad = '.' x $p;
-                my $endpad = '.' x ($pad_len - $p);
-                push @rows, "$startpad$row$endpad";
-            }
-        }
-
-        push @startlens, $cur_len;
-        $cur_len = shift @endlens;
-    }
-
-    return @rows;
 }
