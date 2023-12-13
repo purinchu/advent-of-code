@@ -28,8 +28,9 @@ my @grids_t; # transposition of read in data
 
 do {
     open my $input_fh, '<', (shift @ARGV // $input_name);
-    chomp(my @lines = <$input_fh>);
-    load_input(@lines);
+    local $/ = ""; # go into 'paragraph mode'
+    chomp(my @paragraphs = <$input_fh>);
+    load_input(@paragraphs);
 };
 
 my $sum = 0;
@@ -41,63 +42,25 @@ say $sum;
 
 # Aux subs
 
-sub load_input(@lines)
+sub transpose_strings(@lines)
 {
-    my $cur_grid   = [ ];
-    my @cur_grid_t; # array of lines, transposed from input
-    my $grid_line  = 0;
-
-    my $finalize_grid = sub {
-        if (G_DEBUG_INPUT) {
-            say "Read grid:";
-            say foreach @$cur_grid;
-
-            say "\nGrid transposed:";
-            say "\t$_" foreach @cur_grid_t;
-            say "";
-        }
-
-        push @grids  , $cur_grid;
-        push @grids_t, [@cur_grid_t];
-        $cur_grid   = [ ];
-        @cur_grid_t = ( );
-        $grid_line  = 0;
-    };
-
-    for (@lines) {
-        if ($_) {
-            push @$cur_grid, $_;
-            @cur_grid_t = ('') x length $_ unless $grid_line;
-
-            my @chars = split('');
-            while (my ($idx, $c) = each @chars) {
-                $cur_grid_t[$idx] .= $c;
-            }
-
-            $grid_line++;
-        }
-        else {
-            # grid done, onto new one
-            $finalize_grid->();
-        }
+    return unless @lines;
+    my @result;
+    my $l = length($lines[0]);
+    for (my $i = 0; $i < $l; $i++) {
+        $result[$i] = join('', map { substr ($_, $i, 1) } @lines);
     }
+    return @result;
+}
 
-    # finalize if hit eof without a terminating blank line first
-    $finalize_grid->() if $cur_grid->@*;
-
-    if (G_DEBUG_INPUT) {
-        say "Read in ", scalar @grids, " arrays";
-
-        my $num_grids = @grids;
-        my $num_transposed = @grids_t;
-        die "Different grid sizes ($num_grids vs $num_transposed)"
-            unless $num_grids == $num_transposed;
-
-        my $count = grep { $_ > 0 } map { horiz_reflection($_) } (@grids, @grids_t);
-        # Ensure we found a reflection for every puzzle
-        die "Missed some input!" unless $count == @grids;
+sub load_input(@paras)
+{
+    for (@paras) {
+        s/\n*$//;
+        my @lines = split("\n");
+        push @grids, [@lines];
+        push @grids_t, [transpose_strings(@lines)];
     }
-
 }
 
 # Returns line number to reflect around if it exists. Assumes there is only 1 match!
