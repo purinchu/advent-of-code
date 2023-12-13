@@ -9,7 +9,7 @@
 use 5.038;
 use autodie;
 
-use List::Util qw(first zip);
+use List::Util qw(sum first zip);
 
 # Config
 use constant G_DEBUG_INPUT => 0;
@@ -19,97 +19,94 @@ use constant G_DEBUG_SMUDGE => 0;
 my $input_name = '../25/input';
 $" = ', '; # For arrays interpolated into strings
 
-# Code (Aux subs below)
-
-open my $input_fh, '<', (shift @ARGV // $input_name);
-
-chomp(my @lines = <$input_fh>);
+# Globals
 
 my @grids;   # read in data
 my @grids_t; # transposition of read in data
 
-my $cur_grid   = [ ];
-my @cur_grid_t; # array of lines, transposed from input
-my $grid_line  = 0;
+# Code (Aux subs below)
 
-my $finalize_grid = sub {
-    if (G_DEBUG_INPUT) {
-        say "Read grid:";
-        say foreach @$cur_grid;
-
-        say "\nGrid transposed:";
-        say "\t$_" foreach @cur_grid_t;
-        say "";
-    }
-
-    push @grids  , $cur_grid;
-    push @grids_t, [@cur_grid_t];
-    $cur_grid   = [ ];
-    @cur_grid_t = ( );
-    $grid_line  = 0;
+do {
+    open my $input_fh, '<', (shift @ARGV // $input_name);
+    chomp(my @lines = <$input_fh>);
+    load_input(@lines);
 };
 
-for (@lines) {
-    if ($_) {
-        push @$cur_grid, $_;
-        @cur_grid_t = ('') x length $_ unless $grid_line;
-
-        my @chars = split('');
-        while (my ($idx, $c) = each @chars) {
-            $cur_grid_t[$idx] .= $c;
-        }
-
-        $grid_line++;
-    }
-    else {
-        # grid done, onto new one
-        $finalize_grid->();
-    }
-}
-
-# finalize if hit eof without a terminating blank line first
-$finalize_grid->() if $cur_grid->@*;
-
-my $num_grids = @grids;
-my $num_transposed = @grids_t;
-die "Different grid sizes ($num_grids vs $num_transposed)"
-    unless $num_grids == $num_transposed;
-
-if (G_DEBUG_INPUT) {
-    say "Read in ", scalar @grids, " arrays";
-}
-
 my $sum = 0;
-for (my $i = 0; $i < scalar @grids; $i++) {
-    my $found = 0;
 
-    my @horiz_matches =
-        grep { check_horiz_reflection_at($grids[$i], $_) }
-        1..(scalar ($grids[$i]->@*) - 1);
-
-    if (1 == @horiz_matches) {
-        $sum += 100 * $horiz_matches[0];
-        $found = 1;
-    }
-
-    my @vert_matches =
-        grep { check_horiz_reflection_at($grids_t[$i], $_) }
-        1..(scalar ($grids_t[$i]->@*) - 1);
-
-    if (1 == @vert_matches) {
-        die "found a match horizontally and vertically!"
-            if $found;
-        $found = 1;
-        $sum += $vert_matches[0];
-    }
-
-    # if we get here something is wrong
-    die "No reflection found in grid $i!" unless $found;
-}
+$sum += 100 * sum map { horiz_reflection($_) } @grids;
+$sum +=   1 * sum map { horiz_reflection($_) } @grids_t;
 
 say $sum;
 
 # Aux subs
+
+sub load_input(@lines)
+{
+    my $cur_grid   = [ ];
+    my @cur_grid_t; # array of lines, transposed from input
+    my $grid_line  = 0;
+
+    my $finalize_grid = sub {
+        if (G_DEBUG_INPUT) {
+            say "Read grid:";
+            say foreach @$cur_grid;
+
+            say "\nGrid transposed:";
+            say "\t$_" foreach @cur_grid_t;
+            say "";
+        }
+
+        push @grids  , $cur_grid;
+        push @grids_t, [@cur_grid_t];
+        $cur_grid   = [ ];
+        @cur_grid_t = ( );
+        $grid_line  = 0;
+    };
+
+    for (@lines) {
+        if ($_) {
+            push @$cur_grid, $_;
+            @cur_grid_t = ('') x length $_ unless $grid_line;
+
+            my @chars = split('');
+            while (my ($idx, $c) = each @chars) {
+                $cur_grid_t[$idx] .= $c;
+            }
+
+            $grid_line++;
+        }
+        else {
+            # grid done, onto new one
+            $finalize_grid->();
+        }
+    }
+
+    # finalize if hit eof without a terminating blank line first
+    $finalize_grid->() if $cur_grid->@*;
+
+    if (G_DEBUG_INPUT) {
+        say "Read in ", scalar @grids, " arrays";
+
+        my $num_grids = @grids;
+        my $num_transposed = @grids_t;
+        die "Different grid sizes ($num_grids vs $num_transposed)"
+            unless $num_grids == $num_transposed;
+
+        my $count = grep { $_ > 0 } map { horiz_reflection($_) } (@grids, @grids_t);
+        # Ensure we found a reflection for every puzzle
+        die "Missed some input!" unless $count == @grids;
+    }
+
+}
+
+# Returns line number to reflect around if it exists. Assumes there is only 1 match!
+sub horiz_reflection($grid_ref)
+{
+    my $last_row = @$grid_ref - 1;
+    my $line_ref = first { check_horiz_reflection_at($grid_ref, $_) } 1..$last_row;
+    return $line_ref // 0;
+}
 
 # reflects the grid about the horizontal axis just after line $idx, and
 # returns true if the grid was a true reflection at that point (including
