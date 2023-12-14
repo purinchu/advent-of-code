@@ -16,7 +16,7 @@ use Hash::Util qw(hash_value);
 use constant G_DEBUG_INPUT => 0;
 use constant G_DEBUG_ROCKS => 1;
 use constant G_DEBUG_STEP  => 0;
-use constant G_CACHE_SIZE  => 128;
+use constant G_MAX_CACHE   => 2047;
 use constant G_SPIN_CYCLES => 1_000_000_000;
 
 my $input_name = '../27/input';
@@ -35,7 +35,7 @@ do {
     @grids = load_input(@paragraphs);
 };
 
-my @prev_cycles; # Try to detect if we've met an intermediate state
+my %prev_cycles; # Try to detect if we've met an intermediate state
 my @t = $grids[0]->@* or die "No grid???";
 
 my $steps = $ARGV[0] // G_SPIN_CYCLES;
@@ -78,30 +78,24 @@ for (1..$steps) {
         1 while $str =~ s/O(\.+)/${1}O/;
     }
 
-    # See if we've encountered this intermediate state before
-    my $cur_hash_value = hash_value(join('', @t));
-    my $was_seen = first { $_->[0] == $cur_hash_value } @prev_cycles;
-    if ($was_seen) {
-        my $seen_cycle   = $was_seen->[1];
-        my $cycle_length = $_ - $seen_cycle; # cycle length
-        my $steps_left   = $steps - $_;
-        my $cyc_done     = int($steps_left / $cycle_length);
-        my $cur_step     = $_ + $cycle_length * $cyc_done;
-        $stop_at = $steps - $cur_step + $_ + 1;
-    }
-    elsif (@prev_cycles >= G_CACHE_SIZE && $_ >= 100000) {
-        die "intermediate cache too small";
-    }
-
-    # This is new, save it while keeping cache size manageable
-    push @prev_cycles, [$cur_hash_value, $_];
-    shift @prev_cycles if @prev_cycles > G_CACHE_SIZE;
-
     # left is still west
     if (G_DEBUG_STEP) {
         say "After step ", sprintf("%09d", $_), ":";
         say foreach @t;
         say "";
+    }
+
+    next if $stop_at; # if we know where to stop, keep going
+
+    # See if we've encountered this intermediate state before
+    my $state_str = join('', @t);
+    if (my $seen_cycle = $prev_cycles{$state_str} // 0) {
+        my $cycle_length = $_ - $seen_cycle;
+        my $steps_left   = $steps - $_;
+        $stop_at = $_ + ($steps_left % $cycle_length) + 1;
+    } else {
+        $prev_cycles{$state_str} = $_;
+        die "intermediate cache too small" if %prev_cycles >= G_MAX_CACHE;
     }
 }
 
