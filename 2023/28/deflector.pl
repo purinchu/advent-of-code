@@ -14,7 +14,7 @@ use Hash::Util qw(hash_value);
 
 # Config
 use constant G_DEBUG_INPUT => 0;
-use constant G_DEBUG_ROCKS => 1;
+use constant G_DEBUG_ROCKS => 0;
 use constant G_DEBUG_STEP  => 0;
 use constant G_MAX_CACHE   => 2047;
 use constant G_SPIN_CYCLES => 1_000_000_000;
@@ -43,8 +43,6 @@ my $stop_at; # if we find a cycle we can flag what step to stop on
 
 for (1..$steps) {
     # at cycle start, left is west
-
-    last if $_ == ($stop_at // 0);
 
     # now left is north
     @t = transpose_strings(@t);
@@ -85,14 +83,14 @@ for (1..$steps) {
         say "";
     }
 
-    next if $stop_at; # if we know where to stop, keep going
+    last if ($stop_at // 0) == $_; # if we know where to stop, keep going
 
     # See if we've encountered this intermediate state before
     my $state_str = join('', @t);
     if (my $seen_cycle = $prev_cycles{$state_str} // 0) {
         my $cycle_length = $_ - $seen_cycle;
         my $steps_left   = $steps - $_;
-        $stop_at = $_ + ($steps_left % $cycle_length) + 1;
+        $stop_at = $_ + ($steps_left % $cycle_length);
     } else {
         $prev_cycles{$state_str} = $_;
         die "intermediate cache too small" if %prev_cycles >= G_MAX_CACHE;

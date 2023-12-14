@@ -7,10 +7,13 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <numeric>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -19,7 +22,8 @@
 static const bool g_show_input = false;
 static const bool g_show_dirs = false;
 static const bool g_show_steps = false;
-static const bool g_show_final = true;
+static const bool g_show_final = false;
+static const std::uint_least64_t g_max_cycles = 1'000'000'000;
 
 // common types
 
@@ -46,6 +50,7 @@ struct grid
 
     pos_t height() const { return m_height; }
     pos_t width() const { return m_width; }
+    std::string_view view() const { return std::string_view(m_grid.data(), m_width * m_height); }
 
     void dump_grid() const;
 
@@ -250,16 +255,38 @@ int main(int argc, char **argv)
         }
     }
 
-    for (int i = 1; i <= 1000; i++) {
+    // Do the spin cycles but look for a shortcut to abort early.
+    std::unordered_map<std::size_t, std::uint_least64_t> cache;
+    for (std::uint_least64_t i = 0; i < g_max_cycles; i++) {
         g.fall(Dir::north);
         g.fall(Dir::west);
         g.fall(Dir::south);
         g.fall(Dir::east); // spin cycle!
 
         if constexpr (g_show_steps) {
-            cout << "After cycle" << i << "\n";
+            cout << "After cycle " << i << "\n";
             g.dump_grid();
-            cout << "\n";
+        }
+
+        // Check if we've been in this exact state before
+        const auto sv = g.view();
+
+        // Generate hash code separately because directly using a view with
+        // unordered_map won't work as the different views point to same
+        // memory (always compares equal) and I don't want to store entire
+        // grid for each key.
+        const auto h = std::hash<std::string_view>{}(sv);
+
+        if (const auto it = cache.find(h); it != cache.end()) {
+            const auto &[prev_h, prev_cycle] = *it;
+            const auto cycle_length = i - prev_cycle;
+            const auto remainder = (g_max_cycles - i - 1) % cycle_length;
+            if (!remainder) {
+                cout << "Stopping at cycle " << i << ", cycle length " << cycle_length << "\n";
+                break;
+            }
+        } else {
+            cache.emplace(h, i);
         }
     }
 
