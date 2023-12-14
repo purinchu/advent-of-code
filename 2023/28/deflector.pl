@@ -51,7 +51,7 @@ for (1..$steps) {
 
     for my $str (@t) {
         # move rocks
-        1 while $str =~ s/(\.+)O/O$1/;
+        1 while $str =~ s/(\.+)O/O$1/g;
     }
 
     # next face west
@@ -59,7 +59,7 @@ for (1..$steps) {
 
     for my $str (@t) {
         # move rocks
-        1 while $str =~ s/(\.+)O/O$1/;
+        1 while $str =~ s/(\.+)O/O$1/g;
     }
 
     # next face south (by transpose then reverse)
@@ -67,7 +67,7 @@ for (1..$steps) {
 
     for my $str (@t) {
         # move rocks (DIFFERENT REGEXP)
-        1 while $str =~ s/O(\.+)/${1}O/;
+        1 while $str =~ s/O(\.+)/${1}O/g;
     }
 
     # next face east (by transpose then reverse)
@@ -75,7 +75,7 @@ for (1..$steps) {
 
     for my $str (@t) {
         # move rocks (DIFFERENT REGEXP)
-        1 while $str =~ s/O(\.+)/${1}O/;
+        1 while $str =~ s/O(\.+)/${1}O/g;
     }
 
     # left is still west
