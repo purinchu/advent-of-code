@@ -10,11 +10,13 @@ use 5.038;
 use autodie;
 
 use List::Util qw(sum first zip);
+use Hash::Util qw(hash_value);
 
 # Config
 use constant G_DEBUG_INPUT => 0;
-use constant G_DEBUG_ROCKS => 0;
-use constant G_DEBUG_STEP  => 1;
+use constant G_DEBUG_ROCKS => 1;
+use constant G_DEBUG_STEP  => 0;
+use constant G_CACHE_SIZE  => 128;
 use constant G_SPIN_CYCLES => 1_000_000_000;
 
 my $input_name = '../27/input';
@@ -33,13 +35,16 @@ do {
     @grids = load_input(@paragraphs);
 };
 
+my @prev_cycles; # Try to detect if we've met an intermediate state
 my @t = $grids[0]->@* or die "No grid???";
 
 my $steps = $ARGV[0] // G_SPIN_CYCLES;
-my $last_str = '';
+my $stop_at; # if we find a cycle we can flag what step to stop on
 
 for (1..$steps) {
     # at cycle start, left is west
+
+    last if $_ == ($stop_at // 0);
 
     # now left is north
     @t = transpose_strings(@t);
@@ -73,13 +78,24 @@ for (1..$steps) {
         1 while $str =~ s/O(\.+)/${1}O/;
     }
 
-    my $saved_str = join('', @t);
-    if ($saved_str eq $last_str) {
-        say "Bailing at step $_, seems stable";
-        last;
+    # See if we've encountered this intermediate state before
+    my $cur_hash_value = hash_value(join('', @t));
+    my $was_seen = first { $_->[0] == $cur_hash_value } @prev_cycles;
+    if ($was_seen) {
+        my $seen_cycle   = $was_seen->[1];
+        my $cycle_length = $_ - $seen_cycle; # cycle length
+        my $steps_left   = $steps - $_;
+        my $cyc_done     = int($steps_left / $cycle_length);
+        my $cur_step     = $_ + $cycle_length * $cyc_done;
+        $stop_at = $steps - $cur_step + $_ + 1;
+    }
+    elsif (@prev_cycles >= G_CACHE_SIZE && $_ >= 100000) {
+        die "intermediate cache too small";
     }
 
-    $last_str = $saved_str;
+    # This is new, save it while keeping cache size manageable
+    push @prev_cycles, [$cur_hash_value, $_];
+    shift @prev_cycles if @prev_cycles > G_CACHE_SIZE;
 
     # left is still west
     if (G_DEBUG_STEP) {
@@ -90,14 +106,15 @@ for (1..$steps) {
 }
 
 if (G_DEBUG_ROCKS) {
-    @t = transpose_strings(@t);
-    say "";
     say foreach @t;
+    say "";
+    say "Stopped at $stop_at" if $stop_at;
 }
 
-# count weight
+# count weight on north platform. Since array assumes left is west-facing,
+# must transpose to get an accurate weight.
 my $sum = 0;
-for my $str (@t) {
+for my $str (transpose_strings(@t)) {
     my $idx = 0;
     while(($idx = index($str, 'O', $idx)) != -1) {
         $sum += length($str) - $idx++;
