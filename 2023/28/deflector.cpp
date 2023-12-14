@@ -4,22 +4,21 @@
 
 #include <algorithm>
 #include <concepts>
-#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <iterator>
-#include <map>
-#include <set>
+#include <numeric>
 #include <string>
 #include <utility>
 #include <vector>
 
 // config
 
-static const bool g_show_input = true;
+static const bool g_show_input = false;
 static const bool g_show_dirs = false;
+static const bool g_show_final = false;
 
 // common types
 
@@ -42,9 +41,12 @@ struct grid
     container_t extract_line(const pos_t pos, const Dir dir) const;
     void set_line(const container_t &line, const pos_t pos, const Dir dir);
 
-    void dump_grid() const;
-
     void fall(Dir dir);
+
+    pos_t height() const { return m_height; }
+    pos_t width() const { return m_width; }
+
+    void dump_grid() const;
 
 public:
     container_t m_grid;
@@ -161,6 +163,25 @@ void grid<T>::fall(Dir dir)
     }
 }
 
+template <typename T>
+static int load_factor(const grid<T> &g, const Dir dir)
+{
+    vector<int> weights(g.height(), 0);
+    std::iota(weights.begin(), weights.end(), 1);
+
+    int sum = 0;
+
+    for (int i = 0; i < g.width(); i++) {
+        auto l = g.extract_line(i, dir);
+
+        // Mask stones to apply with inner product
+        std::transform(l.begin(), l.end(), l.begin(), [](const auto &v) { return v == 'O'; });
+        sum += std::inner_product(l.begin(), l.end(), weights.begin(), 0);
+    }
+
+    return sum;
+}
+
 static const char *dir_name(Dir d)
 {
     switch(d) {
@@ -229,7 +250,12 @@ int main(int argc, char **argv)
     }
 
     g.fall(Dir::north);
-    g.dump_grid();
+
+    if constexpr (g_show_final) {
+        g.dump_grid();
+    }
+
+    cout << load_factor(g, Dir::north) << "\n";
 
     return 0;
 }
