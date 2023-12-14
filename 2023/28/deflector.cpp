@@ -18,7 +18,8 @@
 
 static const bool g_show_input = false;
 static const bool g_show_dirs = false;
-static const bool g_show_final = false;
+static const bool g_show_steps = false;
+static const bool g_show_final = true;
 
 // common types
 
@@ -249,7 +250,18 @@ int main(int argc, char **argv)
         }
     }
 
-    g.fall(Dir::north);
+    for (int i = 1; i <= 1000; i++) {
+        g.fall(Dir::north);
+        g.fall(Dir::west);
+        g.fall(Dir::south);
+        g.fall(Dir::east); // spin cycle!
+
+        if constexpr (g_show_steps) {
+            cout << "After cycle" << i << "\n";
+            g.dump_grid();
+            cout << "\n";
+        }
+    }
 
     if constexpr (g_show_final) {
         g.dump_grid();
