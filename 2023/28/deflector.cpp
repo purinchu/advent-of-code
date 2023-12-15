@@ -13,6 +13,7 @@
 #include <numeric>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -40,9 +41,11 @@ struct grid
 {
     using container_t = vector<char>;
     using pos_t       = T;
+    using bounds_t    = std::tuple<pos_t, pos_t, int>; // start, end, step
 
     void add_line(const std::string &line);
 
+    bounds_t steps_for_dir(const pos_t pos, const Dir dir) const;
     container_t extract_line(const pos_t pos, const Dir dir) const;
     void set_line(const container_t &line, const pos_t pos, const Dir dir);
 
@@ -79,11 +82,11 @@ void grid<T>::dump_grid() const
     }
 }
 
+// common code for iterating across a column or row
 template <std::integral T>
-auto grid<T>::extract_line(pos_t pos, Dir dir) const
-    -> container_t
+auto grid<T>::steps_for_dir(const pos_t pos, const Dir dir) const
+    -> bounds_t
 {
-    container_t result;
     pos_t start = 0, end = 0;
     int stride = 1; // can be negative
 
@@ -103,6 +106,17 @@ auto grid<T>::extract_line(pos_t pos, Dir dir) const
     }
 
     end += stride; // so we can abort as soon as we see this
+
+    return std::make_tuple(start, end, stride);
+}
+
+template <std::integral T>
+auto grid<T>::extract_line(const pos_t pos, const Dir dir) const
+    -> container_t
+{
+    container_t result;
+    const auto &[start, end, stride] = steps_for_dir(pos, dir);
+
     for (pos_t i = start; i != end; i += stride) {
         result.push_back(m_grid[i]);
     }
@@ -113,25 +127,8 @@ auto grid<T>::extract_line(pos_t pos, Dir dir) const
 template <std::integral T>
 void grid<T>::set_line(const container_t &line, const pos_t pos, const Dir dir)
 {
-    pos_t start = 0, end = 0;
-    int stride = 1; // can be negative
+    const auto &[start, end, stride] = steps_for_dir(pos, dir);
 
-    // we will iterate up to AND INCLUDING the end
-    if (dir == Dir::east || dir == Dir::west) {
-        start = pos * m_width;
-        end = (pos + 1) * m_width - 1;
-    } else {
-        start = pos;
-        end = pos + m_width * (m_height - 1);
-        stride = m_width;
-    }
-
-    if (dir == Dir::north || dir == Dir::west) {
-        stride *= -1;
-        std::swap(start, end);
-    }
-
-    end += stride; // so we can abort as soon as we see this
     auto it = line.begin();
     for (pos_t i = start; i != end; i += stride) {
         m_grid[i] = *it++;
@@ -172,6 +169,7 @@ void grid<T>::fall(Dir dir)
 template <typename T>
 static int load_factor(const grid<T> &g, const Dir dir)
 {
+    // TODO: Hardcoded for north-facing only
     vector<int> weights(g.height(), 0);
     std::iota(weights.begin(), weights.end(), 1);
 
