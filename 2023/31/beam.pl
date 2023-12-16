@@ -21,8 +21,11 @@ $" = ', '; # For arrays interpolated into strings
 
 # Globals
 
-my @grids;
-my @tiles;
+my @grids; # Mirror grid
+my @tiles; # Portions of grid energized
+my @beams; # Beams of light in motion
+my %visited_tiles; # Detects cycles of beams
+my ($h, $w); # Grid dimension
 
 # Code (Aux subs below)
 
@@ -41,12 +44,7 @@ if (G_DEBUG_INPUT) {
 }
 
 # Handle beams
-my @beams;
-
 push @beams, ['E', 0, 0]; # dir, x, y, ttl
-
-my $h = @grids;
-my $w = $grids[0]->@*;
 
 my %newdir = (
     '/E' => 'N',
@@ -59,7 +57,6 @@ my %newdir = (
     '\S' => 'E',
 );
 
-my %visited_tiles;
 my $visit = sub ($x, $y, $dir) {
     $tiles[$y]->[$x] = '#';
     $visited_tiles{"$x/$y/$dir"} = 1;
@@ -137,6 +134,8 @@ sub load_input(@paras)
     }
 
     @tiles = map { [('.') x (@$_)] } @grids;
+    $h = @grids;
+    $w = $grids[0]->@*;
 }
 
 sub dump_screen_with_color
