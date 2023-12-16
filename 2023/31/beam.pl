@@ -13,7 +13,8 @@ use List::Util qw(sum first zip);
 
 # Config
 use constant G_DEBUG_INPUT => 0;
-use constant G_DEBUG_OUTPUT => 1;
+use constant G_DEBUG_ANIMATE => 0;
+use constant G_DEBUG_OUTPUT => 0;
 
 my $input_name = 'input';
 $" = ', '; # For arrays interpolated into strings
@@ -42,7 +43,7 @@ if (G_DEBUG_INPUT) {
 # Handle beams
 my @beams;
 
-push @beams, ['E', 0, 0, 4096]; # dir, x, y, ttl
+push @beams, ['E', 0, 0]; # dir, x, y, ttl
 
 my $h = @grids;
 my $w = $grids[0]->@*;
@@ -62,7 +63,6 @@ my %visited_tiles;
 my $visit = sub ($x, $y, $dir) {
     $tiles[$y]->[$x] = '#';
     $visited_tiles{"$x/$y/$dir"} = 1;
-    say "visited $x, $y heading $dir";
 };
 
 my $move = sub ($x, $y, $dir) {
@@ -73,68 +73,53 @@ my $move = sub ($x, $y, $dir) {
     die "unhandled dir $dir";
 };
 
-system ('tput', 'smcup');
-$SIG{INT} = sub { system('tput', 'rmcup'); exit 1; };
+my $add_beam = sub ($sx, $sy, $dir) {
+    my ($x, $y) = $move->($sx, $sy, $dir);
+    return unless ($x >= 0 && $x < $w && $y >= 0 && $y < $h);
+    return if exists $visited_tiles{"$x/$y/$dir"};
+    push @beams, [$dir, $x, $y];
+};
+
+if (G_DEBUG_ANIMATE) {
+    # use alternate terminal screen if we want to show in situ progress
+    system ('tput', 'smcup');
+    $SIG{INT} = sub { system('tput', 'rmcup'); exit 1; };
+}
 
 while (@beams && @beams < 2048) {
-    my ($dir, $x, $y, $ttl) = (shift @beams)->@*;
+    my ($dir, $x, $y) = (shift @beams)->@*;
 
     my $horiz = ($dir eq 'E' or $dir eq 'W');
     my $vert = !$horiz;
 
-    # clear screen and reset cursor
-    print "\e[H\e[2J";
-
     $visit->($x, $y, $dir);
-    ($x, $y) = $move->($x, $y, $dir);
-    say "-moved to $x, $y heading $dir";
 
-#   draw_screen_overlayed();
-#   sleep 1;
+    if (G_DEBUG_ANIMATE){
+        draw_screen_overlayed();
+        sleep 1;
+    }
 
     my $tile = $grids[$y]->[$x];
 
-    if ($x >= 0 && $y >= 0 && $x < $w && $y < $h && $ttl) {
-        --$ttl;
-
-        # stop if we've run through this loop before
-        if (exists $visited_tiles{"$x/$y/$dir"}) {
-            say "stopping early to skip visited tile $x, $y heading $dir";
-            next;
-        }
-
-        my @new_beams;
-        if ($tile eq '.' || $tile eq '-' && $horiz || $tile eq '|' && $vert) {
-            push @new_beams, [$dir, $x, $y, $ttl];
-        }
-        elsif ($tile eq '|' && $horiz) {
-            push @new_beams, ['N', $x, $y, $ttl];
-            push @new_beams, ['S', $x, $y, $ttl];
-        }
-        elsif ($tile eq '-' && $vert) {
-            push @new_beams, ['E', $x, $y, $ttl];
-            push @new_beams, ['W', $x, $y, $ttl];
-        }
-        else {
-            push @new_beams, [$newdir{"$tile$dir"}, $x, $y, $ttl];
-        }
-
-        push @beams, @new_beams;
+    if ($tile eq '.' || $tile eq '-' && $horiz || $tile eq '|' && $vert) {
+        $add_beam->($x, $y, $dir);
     }
-
-    if (!$ttl && !exists $visited_tiles{"$x/$y/$dir"}) {
-        warn "Killed beam about to visit new tile at $x, $y heading $dir!";
+    elsif ($tile eq '|' && $horiz) {
+        $add_beam->($x, $y, 'N');
+        $add_beam->($x, $y, 'S');
+    }
+    elsif ($tile eq '-' && $vert) {
+        $add_beam->($x, $y, 'E');
+        $add_beam->($x, $y, 'W');
+    }
+    else {
+        my $next_dir = $newdir{"$tile$dir"};
+        $add_beam->($x, $y, $next_dir);
     }
 }
 
-system ('tput', 'rmcup');
-
-if (G_DEBUG_OUTPUT) {
-    say join('', $_->@*) foreach @grids;
-    say "";
-    say join('', $_->@*) foreach @tiles;
-    say "";
-}
+system ('tput', 'rmcup') if G_DEBUG_ANIMATE;
+dump_screen_with_color() if G_DEBUG_OUTPUT;
 
 say scalar grep { $_ eq '#' } map { ($_->@*)} @tiles;
 
@@ -154,9 +139,30 @@ sub load_input(@paras)
     @tiles = map { [('.') x (@$_)] } @grids;
 }
 
+sub dump_screen_with_color
+{
+    for my $y (0..($h-1)) {
+        for my $x (0..($w-1)) {
+            my $c = $tiles[$y]->[$x] // '';
+            if ($c eq '#') {
+                # energized
+                print "\e[1;31;46m"; # cyan bg, bright red fg
+            } else {
+                print "\e[37;49m"; # default bg, white fg
+            }
+            print $grids[$y]->[$x];
+        }
+        print "\e[37;49m"; # default bg, white fg
+        say "";
+    }
+}
+
 sub draw_screen_overlayed
 {
-    print "\e[31m";
+    # clear screen and reset cursor
+    print "\e[H\e[2J";
+
+    print "\e[31m"; # color
     say join('', $_->@*) foreach @grids;
     say "";
 
