@@ -76,6 +76,17 @@ sub set_cached($key, $value)
     return $value;
 }
 
+sub build_re($partlen, $in_middle)
+{
+    # my input has part nums from 1-15. RE looks for 0-14 since first # is consumed
+    # by time it's called.
+    #
+    # match for end and middle match, resp
+    state @re_cache = map { (qr/^[#?]{$_}[.?]*$/an, qr/^[#?]{$_}[.?]/an) } 0..14;
+
+    return $re_cache[($partlen - 1) * 2 + !!$in_middle];
+}
+
 # counts all cases starting at template until there is no more room
 sub count_sub_case($template, $partlen, @rest)
 {
@@ -93,22 +104,17 @@ sub count_sub_case($template, $partlen, @rest)
     # We have an input to match
     if ($cur_char eq '#') {
         # last subsegment doesn't need '.'
-        my $re_str = '^' . ('[#?]') x ($partlen - 1) . ('[.?]') x (@rest ? 1 : 0);
+        my $re = build_re($partlen, !!@rest);
 
         # if we can't match here, we're done
-        return set_cached($key, 0) unless $template =~ /$re_str/;
+        return set_cached($key, 0) unless $template =~ $re;
 
-        # we've matched, consume rest of the input
-        $template = substr ($template, $partlen - 1 + (@rest ? 1 : 0));
+        # if we did match without remaining parts, the regexp confirmed the match
+        return set_cached($key, 1) if !@rest;
 
-        # if there's nothing left to match figure it out before recursion
-        return set_cached($key, 0) if !@rest and $template =~ /#/;
-        return set_cached($key, 1) if !@rest and $template =~ /^[.?]*$/;
-        return set_cached($key, 0) if  @rest and $template =~ /^\.*$/;
-
-        # special cases gone, need to keep looking. Note deliberate missed
-        # second param in recursion to destructure partnet in nested call
-        return set_cached($key, count_sub_case($template, @rest));
+        # we've matched so far, consume rest of the input and keep looking
+        # NB deliberate missed second param in recursion for destructuring
+        return set_cached($key, count_sub_case(substr ($template, $partlen), @rest));
     } elsif ($cur_char eq '?') {
         # combine both paths (# or .) by calling cur path again using both
         # possibilities. with . we just keep going rather than add it in
