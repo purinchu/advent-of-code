@@ -43,34 +43,7 @@ if (G_DEBUG_INPUT) {
     say "";
 }
 
-# Handle beams
-push @beams, ['E', 0, 0]; # dir, x, y, ttl
-
-if (G_DEBUG_ANIMATE) {
-    # use alternate terminal screen if we want to show in situ progress
-    system ('tput', 'smcup');
-    $SIG{INT} = sub { system('tput', 'rmcup'); exit 1; };
-}
-
-while (@beams && @beams < 2048) {
-    my ($dir, $x, $y) = (shift @beams)->@*;
-
-    visit($x, $y, $dir);
-
-    if (G_DEBUG_ANIMATE){
-        draw_screen_overlayed();
-        sleep 1;
-    }
-
-    add_next_moves($x, $y, $dir);
-}
-
-system ('tput', 'rmcup') if G_DEBUG_ANIMATE;
-dump_screen_with_color() if G_DEBUG_OUTPUT;
-
-say scalar grep { $_ eq '#' } map { ($_->@*) } @tiles;
-
-say "Likely died due to lotsa beams" if @beams >= 2048;
+say num_energized(0, 0, 'E');
 
 # Aux subs
 
@@ -207,4 +180,40 @@ sub add_beam ($sx, $sy, $dir)
     return if exists $visited_tiles{"$x/$y/$dir"};
 
     push @beams, [$dir, $x, $y];
-};
+}
+
+sub num_energized ($x, $y, $initialdir)
+{
+    # clear state
+    @beams = [$initialdir, $x, $y];
+    @tiles = map { [('.') x (@$_)] } @grids;
+    %visited_tiles = ();
+
+    if (G_DEBUG_ANIMATE) {
+        # use alternate terminal screen if we want to show in situ progress
+        system ('tput', 'smcup');
+        $SIG{INT} = sub { system('tput', 'rmcup'); exit 1; };
+    }
+
+    while (@beams) {
+        die "too many concurrent beams" if @beams >= 2048;
+
+        my ($dir, $x, $y) = (shift @beams)->@*;
+
+        visit($x, $y, $dir);
+
+        if (G_DEBUG_ANIMATE){
+            draw_screen_overlayed();
+            sleep 1;
+        }
+
+        add_next_moves($x, $y, $dir);
+    }
+
+    system ('tput', 'rmcup') if G_DEBUG_ANIMATE;
+    delete $SIG{INT};
+
+    dump_screen_with_color() if G_DEBUG_OUTPUT;
+
+    return scalar grep { $_ eq '#' } map { ($_->@*) } @tiles;
+}
