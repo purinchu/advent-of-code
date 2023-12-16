@@ -10,6 +10,8 @@
 use 5.038;
 use autodie;
 
+use List::Util qw(sum);
+
 my $input_name = '../23/input';
 $" = ', '; # For arrays interpolated into strings
 
@@ -24,25 +26,14 @@ my $cache_inserts = 0;
 
 open my $input_fh, '<', (shift @ARGV // $input_name);
 
-chomp(my @lines = <$input_fh>);
-
-my @rows = map {
+say sum map {
+    chomp;
     my ($r, $crc) = split(' ', $_);
-    $r = join('?', ($r) x 5);
-    $crc = join(',', ($crc) x 5);
-
-    my @sums = split(',', $crc);
-    [$r, @sums];
-} @lines;
-
-my $sum = 0;
-for my $row (@rows) {
-    my ($template, @partlens) = $row->@*;
-    my $count = count_valid_rows($template, @partlens);
-    $sum += $count;
-}
-
-say $sum;
+    count_sub_case(
+        join('?', ($r) x 5),
+        (split(',', $crc)) x 5
+    );
+} <$input_fh>;
 
 # Aux subs
 
@@ -98,39 +89,22 @@ sub count_sub_case($template, $partlen, @rest)
     $template =~ s/^[.]*//; # skip leading '.'
     return set_cached($key, 0) unless $template;
 
-    # be strict on cases. we look at one char and that's it...
+    # be strict on cases. we look at one char and match or not.
     my $cur_char = substr ($template, 0, 1, ''); # changes $template
+    die "unhandled char $cur_char"
+        unless $cur_char eq '#' or $cur_char eq '?';
 
-    # We have an input to match
-    if ($cur_char eq '#') {
-        # last subsegment doesn't need '.'
-        my $re = build_re($partlen, !!@rest);
+    # base case for both ? and # handling (regexp treats them the same)
+    my $count;
+    $count //= 0 unless $template =~ build_re($partlen, !!@rest);
+    $count //= 1 unless @rest; # only undef if regexp did match
 
-        # if we can't match here, we're done
-        return set_cached($key, 0) unless $template =~ $re;
+    # if we've not matched so far, consume rest of the input and keep looking
+    # by coincidence the math works out to cancel out offsets naturally
+    $count //= count_sub_case(substr ($template, $partlen), @rest);
 
-        # if we did match without remaining parts, the regexp confirmed the match
-        return set_cached($key, 1) if !@rest;
+    # check for alt. reality in wildcard case
+    $count += count_sub_case($template, $partlen, @rest) if $cur_char eq '?';
 
-        # we've matched so far, consume rest of the input and keep looking
-        # NB deliberate missed second param in recursion for destructuring
-        return set_cached($key, count_sub_case(substr ($template, $partlen), @rest));
-    } elsif ($cur_char eq '?') {
-        # combine both paths (# or .) by calling cur path again using both
-        # possibilities. with . we just keep going rather than add it in
-
-        my $count =
-            count_sub_case("#$template", $partlen, @rest) +
-            count_sub_case(  $template , $partlen, @rest);
-
-        return set_cached($key, $count);
-    } else {
-        die "unhandled char $cur_char";
-    }
-    die "should not get here";
-}
-
-sub count_valid_rows($template, @partlens)
-{
-    return count_sub_case($template, @partlens);
+    return set_cached($key, $count);
 }
