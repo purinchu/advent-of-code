@@ -46,22 +46,6 @@ if (G_DEBUG_INPUT) {
 # Handle beams
 push @beams, ['E', 0, 0]; # dir, x, y, ttl
 
-my %newdir = (
-    '/E' => 'N',
-    '/W' => 'S',
-    '/N' => 'E',
-    '/S' => 'W',
-    '\E' => 'S',
-    '\W' => 'N',
-    '\N' => 'W',
-    '\S' => 'E',
-);
-
-my $visit = sub ($x, $y, $dir) {
-    $tiles[$y]->[$x] = '#';
-    $visited_tiles{"$x/$y/$dir"} = 1;
-};
-
 my $move = sub ($x, $y, $dir) {
     return ($x + 1, $y  ) if $dir eq 'E';
     return ($x - 1, $y  ) if $dir eq 'W';
@@ -86,33 +70,14 @@ if (G_DEBUG_ANIMATE) {
 while (@beams && @beams < 2048) {
     my ($dir, $x, $y) = (shift @beams)->@*;
 
-    my $horiz = ($dir eq 'E' or $dir eq 'W');
-    my $vert = !$horiz;
-
-    $visit->($x, $y, $dir);
+    visit($x, $y, $dir);
 
     if (G_DEBUG_ANIMATE){
         draw_screen_overlayed();
         sleep 1;
     }
 
-    my $tile = $grids[$y]->[$x];
-
-    if ($tile eq '.' || $tile eq '-' && $horiz || $tile eq '|' && $vert) {
-        $add_beam->($x, $y, $dir);
-    }
-    elsif ($tile eq '|' && $horiz) {
-        $add_beam->($x, $y, 'N');
-        $add_beam->($x, $y, 'S');
-    }
-    elsif ($tile eq '-' && $vert) {
-        $add_beam->($x, $y, 'E');
-        $add_beam->($x, $y, 'W');
-    }
-    else {
-        my $next_dir = $newdir{"$tile$dir"};
-        $add_beam->($x, $y, $next_dir);
-    }
+    add_next_moves($x, $y, $dir);
 }
 
 system ('tput', 'rmcup') if G_DEBUG_ANIMATE;
@@ -185,4 +150,37 @@ sub draw_screen_overlayed
 
     # restore cursor position
     print ("\e[8");
+}
+
+sub visit ($x, $y, $dir)
+{
+    $tiles[$y]->[$x] = '#';
+    $visited_tiles{"$x/$y/$dir"} = 1;
+}
+
+sub add_next_moves ($x, $y, $indir)
+{
+    state %newdir = (
+        '/E' => 'N', '/W' => 'S', '/N' => 'E', '/S' => 'W',
+        '\E' => 'S', '\W' => 'N', '\N' => 'W', '\S' => 'E',
+    );
+
+    my $tile = $grids[$y]->[$x];
+    my $horiz = ($indir eq 'E' or $indir eq 'W');
+    my $vert = !$horiz;
+
+    if ($tile eq '.' || $tile eq '-' && $horiz || $tile eq '|' && $vert) {
+        $add_beam->($x, $y, $indir);
+    }
+    elsif ($tile eq '|' && $horiz) {
+        $add_beam->($x, $y, 'N');
+        $add_beam->($x, $y, 'S');
+    }
+    elsif ($tile eq '-' && $vert) {
+        $add_beam->($x, $y, 'E');
+        $add_beam->($x, $y, 'W');
+    }
+    else {
+        $add_beam->($x, $y, $newdir{"$tile$indir"});
+    }
 }
