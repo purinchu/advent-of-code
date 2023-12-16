@@ -17,10 +17,6 @@ $" = ', '; # For arrays interpolated into strings
 
 # Globals
 my %cache; # for memoization / DP
-my %cache_lru;
-my $cache_hits = 0;
-my $cache_attempts = 0;
-my $cache_inserts = 0;
 
 # Code (Aux subs below)
 
@@ -39,32 +35,13 @@ say sum map {
 
 sub get_cached($key)
 {
-    $cache_attempts++;
-    if (exists $cache{$key}) {
-        $cache_hits++;
-        $cache_lru{$key} = $cache_attempts;
-        return $cache{$key};
-    }
-
+    return $cache{$key} if exists $cache{$key};
     return;
 }
 
 sub set_cached($key, $value)
 {
-    $cache_inserts++;
-    $cache{$key} = $value;
-    $cache_lru{$key} = $cache_attempts;
-    if (%cache > 6000) {
-        my @sorted_keys =
-            map { $_->[0] }
-            sort { $a->[1] <=> $b->[1] }
-            map { [ $_, $cache_lru{$_} ]}
-            keys %cache_lru;
-        splice(@sorted_keys, 1000); # remove 1000 old entries
-        delete @cache{@sorted_keys};
-        delete @cache_lru{@sorted_keys};
-    }
-    return $value;
+    return $cache{$key} = $value;
 }
 
 sub build_re($partlen, $in_middle)
