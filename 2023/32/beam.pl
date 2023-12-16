@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 
-# AoC 2023 - Puzzle 31 (Day 16 Part 1)
+# AoC 2023 - Puzzle 32 (Day 16 Part 2)
 # This problem requires to read in an input file that ultimately
 # lists information about info grids to find where these grids have
 # beams cross over them
@@ -43,7 +43,31 @@ if (G_DEBUG_INPUT) {
     say "";
 }
 
-say num_energized(0, 0, 'E');
+my @initial_dirs;
+push @initial_dirs, map { ([0, $_, 'E'], [$w - 1, $_, 'W']) } 0..($h-1);
+push @initial_dirs, map { ([$_, 0, 'S'], [$_, $h - 1, 'N']) } 0..($w-1);
+
+say scalar @initial_dirs, " unique directions to try";
+
+my $max_energized = 0;
+my $i = 0;
+my $last_update = 0;
+
+for my $init (@initial_dirs) {
+    $max_energized = max ($max_energized, num_energized($init->@*));
+    $i++;
+
+    my $cur_update = time;
+    if ($cur_update != $last_update) {
+        print "\e[2K\r"; # clear line
+        print sprintf("%05d", $i), " / ", sprintf("%05d", scalar @initial_dirs), " cases handled, cur max $max_energized.";
+        select()->flush();
+        $last_update = $cur_update;
+    }
+}
+
+say "";
+say "Max energized? $max_energized";
 
 # Aux subs
 
