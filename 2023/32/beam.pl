@@ -170,7 +170,15 @@ sub add_next_moves ($x, $y, $indir)
         }
     }
     elsif (!$horiz && ($tile eq '.' || $tile eq '|')) {
-        add_beam($x, $y, $indir);
+        if ($indir eq 'S') {
+            my $end = ((first { $grids[$_]->[$x] ne '|' and $grids[$_]->[$x] ne '.' } $y..($h-1)) // $h) - 1;
+            visit($x, $_, $indir) foreach $y..$end;
+            add_beam($x, $end, $indir) if $end < ($h - 1); # only add beam if we hit a mirror
+        } else {
+            my $end = ((first { $grids[$_]->[$x] ne '|' and $grids[$_]->[$x] ne '.' } reverse 0..$y) // 0) + 1;
+            visit($x, $_, $indir) foreach $end..$y;
+            add_beam($x, $end, $indir) if $end > 0; # only add beam if we hit a mirror
+        }
     }
     elsif ($tile eq '|' && $horiz) {
         add_beam($x, $y, 'N');
