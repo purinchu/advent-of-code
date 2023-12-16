@@ -46,21 +46,6 @@ if (G_DEBUG_INPUT) {
 # Handle beams
 push @beams, ['E', 0, 0]; # dir, x, y, ttl
 
-my $move = sub ($x, $y, $dir) {
-    return ($x + 1, $y  ) if $dir eq 'E';
-    return ($x - 1, $y  ) if $dir eq 'W';
-    return ($x  , $y + 1) if $dir eq 'S';
-    return ($x  , $y - 1) if $dir eq 'N';
-    die "unhandled dir $dir";
-};
-
-my $add_beam = sub ($sx, $sy, $dir) {
-    my ($x, $y) = $move->($sx, $sy, $dir);
-    return unless ($x >= 0 && $x < $w && $y >= 0 && $y < $h);
-    return if exists $visited_tiles{"$x/$y/$dir"};
-    push @beams, [$dir, $x, $y];
-};
-
 if (G_DEBUG_ANIMATE) {
     # use alternate terminal screen if we want to show in situ progress
     system ('tput', 'smcup');
@@ -83,7 +68,7 @@ while (@beams && @beams < 2048) {
 system ('tput', 'rmcup') if G_DEBUG_ANIMATE;
 dump_screen_with_color() if G_DEBUG_OUTPUT;
 
-say scalar grep { $_ eq '#' } map { ($_->@*)} @tiles;
+say scalar grep { $_ eq '#' } map { ($_->@*) } @tiles;
 
 say "Likely died due to lotsa beams" if @beams >= 2048;
 
@@ -155,6 +140,9 @@ sub draw_screen_overlayed
 sub visit ($x, $y, $dir)
 {
     $tiles[$y]->[$x] = '#';
+
+    # need separate cache because multiple beams can appear going different
+    # directions. We can only skip if direction was also seen
     $visited_tiles{"$x/$y/$dir"} = 1;
 }
 
@@ -167,20 +155,35 @@ sub add_next_moves ($x, $y, $indir)
 
     my $tile = $grids[$y]->[$x];
     my $horiz = ($indir eq 'E' or $indir eq 'W');
-    my $vert = !$horiz;
 
-    if ($tile eq '.' || $tile eq '-' && $horiz || $tile eq '|' && $vert) {
-        $add_beam->($x, $y, $indir);
+    if ($tile eq '.' || $tile eq '-' && $horiz || $tile eq '|' && !$horiz) {
+        add_beam($x, $y, $indir);
     }
     elsif ($tile eq '|' && $horiz) {
-        $add_beam->($x, $y, 'N');
-        $add_beam->($x, $y, 'S');
+        add_beam($x, $y, 'N');
+        add_beam($x, $y, 'S');
     }
-    elsif ($tile eq '-' && $vert) {
-        $add_beam->($x, $y, 'E');
-        $add_beam->($x, $y, 'W');
+    elsif ($tile eq '-' && !$horiz) {
+        add_beam($x, $y, 'E');
+        add_beam($x, $y, 'W');
     }
     else {
-        $add_beam->($x, $y, $newdir{"$tile$indir"});
+        add_beam($x, $y, $newdir{"$tile$indir"});
     }
 }
+
+# starting from sx,sy, moves in dir and, if valid and not seen, adds a
+# beam for later processing
+sub add_beam ($sx, $sy, $dir)
+{
+    state %xoff = (E => 1, W => -1);
+    state %yoff = (S => 1, N => -1);
+
+    my $x = $sx + ($xoff{$dir} // 0);
+    my $y = $sy + ($yoff{$dir} // 0);
+
+    return unless ($x >= 0 && $x < $w && $y >= 0 && $y < $h);
+    return if exists $visited_tiles{"$x/$y/$dir"};
+
+    push @beams, [$dir, $x, $y];
+};
