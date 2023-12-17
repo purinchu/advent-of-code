@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <functional>
+#include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <limits>
@@ -22,13 +23,14 @@
 // config
 
 static const bool g_show_input = true;
-static const bool g_show_final = true;
+static const bool g_show_final = false;
 
 // common types
 
 using std::as_const;
 using std::pair;
 using std::tuple;
+using std::unordered_map;
 using std::vector;
 
 enum class Dir { west, east, north, south };
@@ -38,10 +40,24 @@ struct node
 {
     pos_t row = 0;
     pos_t col = 0;
-    int distance = std::numeric_limits<int>::max();
     int consec_step = 0;
-    Dir dir_in = Dir::north;
-    bool visited = false;
+    Dir dir_in = Dir::north; // only valid for consec_step > 0
+
+    bool operator==(const node& o) const = default;
+};
+
+template<>
+struct std::hash<node>
+{
+    std::size_t operator()(const node& n) const noexcept
+    {
+        std::size_t h1 = std::hash<pos_t>{}(n.row);
+        std::size_t h2 = std::hash<pos_t>{}(n.col);
+        std::size_t h3 = std::hash<int>{}(n.consec_step);
+        std::size_t h4 = std::hash<Dir>{}(n.dir_in);
+
+        return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3);
+    }
 };
 
 // coordinate system:
@@ -164,6 +180,14 @@ static const char *dir_name(Dir d)
     }
 }
 
+std::ostream& operator <<(std::ostream &os, const node &n)
+{
+    std::ios::fmtflags os_flags(os.flags());
+    os << std::setw(2) << (n.col+1) << "," << std::setw(2) << (n.row+1) << " " << dir_name(n.dir_in) << " " << n.consec_step << " steps";
+    os.flags(os_flags);
+    return os;
+}
+
 int main(int argc, char **argv)
 {
     using std::cerr;
@@ -205,97 +229,109 @@ int main(int argc, char **argv)
         cout << "\n";
     }
 
-    vector<node> nodes; // hold a grid of nodes with distances
-    vector<size_t> unvisited; // holds IDs from nodes; working set
-
     std::ofstream dbg;
     dbg.open("debug.log");
 
     const auto W = g.width(), H = g.height();
-    nodes.resize(W * H);
-    for (pos_t j = 0; j < H; j++) {
-        for (pos_t i = 0; i < W; i++) {
-            nodes[j * W + i].row = j;
-            nodes[j * W + i].col = i;
-        }
-    }
 
-    nodes[0].distance = 0;
-    int steps = 0;
-    bool destination_found = false;
-    Dir ldir;
+    vector<node> to_visit; // may have multiple node at an x,y, also incl dir,step
 
-    while(!destination_found) {
+    unordered_map<node, int> distances;
+    unordered_map<node, bool> was_visited;
+    unordered_map<node, node> predecessors;
+
+    node start { };
+    distances[start] = 0;
+    to_visit.push_back(start);
+
+    while(!to_visit.empty()) {
         using enum Dir;
-        auto min_node_it = std::min_element(nodes.begin(), nodes.end(),
-                [](const auto &l, const auto &r) {
-                return (l.visited == r.visited)
-                ? (l.distance < r.distance)
-                : (l.visited < r.visited);
+
+        auto min_node_it = std::min_element(to_visit.begin(), to_visit.end(),
+                [&distances](const node &l, const node &r) {
+                    const auto lnode = distances.find(l);
+                    const auto rnode = distances.find(r);
+                    const auto end = distances.end();
+                    const auto m = std::numeric_limits<int>::max();
+                    return ((lnode != end) ? lnode->second : m)
+                         < ((rnode != end) ? rnode->second : m);
                 });
-        if (min_node_it == nodes.end() || min_node_it->visited) {
+
+        if (min_node_it == to_visit.end() || was_visited.contains(*min_node_it)) {
+            cout << "Breaking early! Potential problem?";
             break;
         }
-        auto &cur = *min_node_it;
-        auto cx = cur.col, cy = cur.row;
-        steps = cur.consec_step;
-        ldir = cur.dir_in;
 
-        vector<tuple<node, Dir, int>> candidates;
+        auto cur   = *min_node_it;
+        auto cx    = cur.col, cy = cur.row;
+        auto steps = cur.consec_step;
+        Dir ldir   = cur.dir_in;
 
-        dbg << "Cur: " << cx << "," << cy << " distance " << cur.distance << "\n";
+        dbg << "Cur: " << cx << "," << cy << " distance " << distances[cur] << "\n";
 
-        if (cy > 0 && (!steps || ldir == east || ldir == west || (ldir == north && steps < 3))) {
-            const auto n = nodes[(cy-1) * W + cx];
-            if (!n.visited) { candidates.emplace_back(n, north, ldir == north ? steps + 1 : 1); }
-        }
-        if (cy < (H-1) && (!steps || ldir == east || ldir == west || (ldir == south && steps < 3))) {
-            const auto n = nodes[(cy+1) * W + cx];
-            if (!n.visited) { candidates.emplace_back(n, south, ldir == south ? steps + 1 : 1); }
-        }
-        if (cx > 0 && (!steps || ldir == north || ldir == south || (ldir == west && steps < 3))) {
-            const auto n = nodes[cy * W + (cx-1)];
-            if (!n.visited) { candidates.emplace_back(n, west, ldir == west ? steps + 1 : 1); }
-        }
-        if (cx < (W-1) && (!steps || ldir == north || ldir == south || (ldir == east && steps < 3))) {
-            const auto n = nodes[cy * W + (cx+1)];
-            if (!n.visited) { candidates.emplace_back(n, east, ldir == east ? steps + 1 : 1); }
-        }
+        static const std::array dirs      = { north, south, west, east };
+        static const std::array wrong_dir = { east, west, south, north };
+        static const std::array x_off     = { -1, 1, 0, 0 };
+        static const std::array y_off     = { 0, 0, -1, 1 };
 
-        dbg << "Considering " << candidates.size() << " neighbors\n";
-        for (auto & neighbor : candidates) {
-            auto &[node, dir, new_steps] = neighbor;
-            auto &node_ref = nodes[node.row * W + node.col];
-
-            dbg << "  Could move to " << node_ref.col << "," << node_ref.row << " (dir " << dir_name(dir) << ") ";
-            int new_dist = cur.distance + (g.at(node.col, node.row) - '0');
-            if (new_dist < node_ref.distance || (new_dist == node.distance && node.consec_step > new_steps)) {
-                node_ref.distance = new_dist;
-                node_ref.consec_step = new_steps;
-                node_ref.dir_in = dir;
-                dbg << "** ";
+        // Go through all possible directions and new nodes
+        for (const auto &new_dir : dirs) {
+            if (new_dir == wrong_dir[(int) ldir]) {
+                continue; // no backward turns
             }
-            dbg << "Dist " << node_ref.distance << ", steps " << new_steps << "\n";
+
+            int nx = cx + x_off[(int) new_dir];
+            int ny = cy + y_off[(int) new_dir];
+
+            if (nx < 0 || ny < 0 || nx >= W || ny >= H) {
+                continue; // stay on the board
+            }
+
+            int new_steps = (ldir == new_dir) ? steps + 1 : 1;
+
+            if (new_steps > 3) {
+                continue; // no lengthy straight-line distances
+            }
+
+            node candidate { static_cast<pos_t>(ny), static_cast<pos_t>(nx), new_steps, new_dir };
+            if (!was_visited.contains(candidate)) {
+                to_visit.push_back(candidate);
+                predecessors[candidate] = cur;
+                distances[candidate] = (distances[cur] + (g.at(nx, ny) - '0'));
+            }
         }
 
-        cur.visited = true;
-        if (cur.col == W - 1 && cur.row == H - 1) {
-            destination_found = true;
+        was_visited[cur] = true;
+        std::erase(to_visit, cur);
+
+        dbg << "Visited " << cx << "," << cy << ". Now " << to_visit.size() << " elements to visit, "
+            << distances.size() << " known distances, " << was_visited.size() <<  " already visited.\n";
+    }
+
+    cout << "Done, looking now...\n";
+
+    vector<typename std::unordered_map<node, int>::value_type> results;
+    std::copy_if(distances.begin(), distances.end(), std::back_inserter(results),
+            [W, H](const auto &p) { return p.first.row == (H - 1) && p.first.col == (W - 1); });
+    cout << "Found " << results.size() << " possible results\n";
+
+    int min_dist = std::numeric_limits<int>::max();
+    node min_node;
+    for (const auto &r : as_const(results)) {
+        if (r.second < min_dist) {
+            min_dist = r.second;
+            min_node = r.first;
         }
     }
 
-    cout << "Final distance to dest is " << nodes[H * W - 1].distance << "\n";
+    cout << "Minimum distance of those results was " << min_dist << "\n";
 
-    static const char dir_ch[] = "<>^v";
-    if constexpr (g_show_final) {
-        for (pos_t j = 0; j < H; j++) {
-            for (pos_t i = 0; i < W; i++) {
-                const auto &n = nodes[j * W + i];
-                cout << dir_ch[(int)n.dir_in];
-            }
-            cout << "\n";
-        }
-        //      g.dump_grid();
+    int sum = 0;
+    while(predecessors.contains(min_node)) {
+        int d = (g.at(min_node.col, min_node.row) - '0');
+        sum += d;
+        cout << "to: [" << min_node << "] from: [" << predecessors[min_node] << "] " << d << " -> " << sum << "\n";
+        min_node = predecessors[min_node];
     }
 
     return 0;
