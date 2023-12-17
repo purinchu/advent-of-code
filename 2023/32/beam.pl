@@ -44,8 +44,10 @@ if (G_DEBUG_INPUT) {
 }
 
 my @initial_dirs;
-push @initial_dirs, map { ([0, $_, 'E'], [$w - 1, $_, 'W']) } 0..($h-1);
-push @initial_dirs, map { ([$_, 0, 'S'], [$_, $h - 1, 'N']) } 0..($w-1);
+
+# Directions N S E W => 0 1 2 3
+push @initial_dirs, map { ([0, $_, 2], [$w - 1, $_, 3]) } 0..($h-1);
+push @initial_dirs, map { ([$_, 0, 1], [$_, $h - 1, 0]) } 0..($w-1);
 
 say scalar @initial_dirs, " unique directions to try";
 
@@ -134,31 +136,30 @@ sub draw_screen_overlayed
     print ("\e[8");
 }
 
-sub visit ($x, $y, $dir)
+sub visit ($x, $y, $dir_code)
 {
     $tiles[$y]->[$x] = '#';
 
     # need separate cache because multiple beams can appear going different
     # directions. We can only skip if direction was also seen
-    $visited_tiles[$y * $w + $x] |= (1 << $dir);
+    $visited_tiles[$y * $w + $x] |= (1 << $dir_code);
 }
 
-sub add_next_moves ($x, $y, $indir)
+sub add_next_moves ($x, $y, $dir_code)
 {
     state %dirs = (N => 0, S => 1, E => 2, W => 3);
     state %newdir = (
-        '/E' => 0, '/W' => 1, '/N' => 2, '/S' => 3,
-        '\E' => 1, '\W' => 0, '\N' => 3, '\S' => 2,
+        '/2' => 0, '/3' => 1, '/0' => 2, '/1' => 3,
+        '\2' => 1, '\3' => 0, '\0' => 3, '\1' => 2,
     );
 
     my $tile = $grids[$y]->[$x];
-    my $horiz = ($indir eq 'E' or $indir eq 'W');
-    my $dir_code = $dirs{$indir};
+    my $horiz = $dir_code >= 2;
 
     if ($horiz && ($tile eq '.' || $tile eq '-')) {
         my $row = $grids[$y];
 
-        if ($indir eq 'E') {
+        if ($dir_code == 2) { # E
             my $end = ((first { $row->[$_] ne '-' and $row->[$_] ne '.' } $x..($w-1)) // $w) - 1;
             visit($_, $y, $dir_code) foreach $x..$end;
             add_beam($end, $y, $dir_code) if $end < ($w - 1); # only add beam if we hit a mirror
@@ -169,7 +170,7 @@ sub add_next_moves ($x, $y, $indir)
         }
     }
     elsif (!$horiz && ($tile eq '.' || $tile eq '|')) {
-        if ($indir eq 'S') {
+        if ($dir_code == 1) { # S
             my $end = ((first { $grids[$_]->[$x] ne '|' and $grids[$_]->[$x] ne '.' } $y..($h-1)) // $h) - 1;
             visit($x, $_, $dir_code) foreach $y..$end;
             add_beam($x, $end, $dir_code) if $end < ($h - 1); # only add beam if we hit a mirror
@@ -188,7 +189,7 @@ sub add_next_moves ($x, $y, $indir)
         add_beam($x, $y, 3);
     }
     else {
-        add_beam($x, $y, $newdir{"$tile$indir"});
+        add_beam($x, $y, $newdir{"$tile$dir_code"});
     }
 }
 
@@ -196,7 +197,6 @@ sub add_next_moves ($x, $y, $indir)
 # beam for later processing
 sub add_beam ($sx, $sy, $dir)
 {
-    state @dirs = qw(N S E W);
     state @xoff = (0, 0, 1, -1); # N S E W
     state @yoff = (-1, 1, 0, 0);
 
@@ -206,7 +206,7 @@ sub add_beam ($sx, $sy, $dir)
     return unless ($x >= 0 && $x < $w && $y >= 0 && $y < $h);
     return if (($visited_tiles[$y * $w + $x] // 0) & (1 << $dir));
 
-    push @beams, [$dirs[$dir], $x, $y];
+    push @beams, [$dir, $x, $y];
 }
 
 sub num_energized ($x, $y, $initialdir)
@@ -215,8 +215,6 @@ sub num_energized ($x, $y, $initialdir)
     @beams = [$initialdir, $x, $y];
     @tiles = map { [('.') x (@$_)] } @grids;
     @visited_tiles = ();
-
-    state %dirs = (N => 0, S => 1, E => 2, W => 3);
 
     if (G_DEBUG_ANIMATE) {
         # use alternate terminal screen if we want to show in situ progress
@@ -229,7 +227,7 @@ sub num_energized ($x, $y, $initialdir)
 
         my ($dir, $x, $y) = (shift @beams)->@*;
 
-        visit($x, $y, $dirs{$dir});
+        visit($x, $y, $dir);
 
         if (G_DEBUG_ANIMATE){
             draw_screen_overlayed();
