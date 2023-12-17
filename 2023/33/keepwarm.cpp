@@ -13,6 +13,7 @@
 #include <iterator>
 #include <limits>
 #include <numeric>
+#include <queue>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -238,35 +239,43 @@ int main(int argc, char **argv)
 
     const auto W = g.width(), H = g.height();
 
-    vector<node> to_visit; // may have multiple node at an x,y, also incl dir,step
-
     unordered_map<node, int> distances;
     unordered_map<node, bool> was_visited;
     unordered_map<node, node> predecessors;
 
+    const auto node_distance_compare = [&distances](const node &l, const node &r) {
+        const auto lnode = distances.find(l);
+        const auto rnode = distances.find(r);
+        const auto end = distances.end();
+        const auto m = std::numeric_limits<int>::max();
+        return ((lnode != end) ? lnode->second : m)
+             > ((rnode != end) ? rnode->second : m);
+    };
+
+    std::priority_queue<
+        node, vector<node>,
+        decltype(node_distance_compare)
+        > to_visit(node_distance_compare);
+
     node start { };
     distances[start] = 0;
-    to_visit.push_back(start);
+
+    to_visit.push(start);
 
     while(!to_visit.empty()) {
         using enum Dir;
 
-        auto min_node_it = std::min_element(to_visit.begin(), to_visit.end(),
-                [&distances](const node &l, const node &r) {
-                    const auto lnode = distances.find(l);
-                    const auto rnode = distances.find(r);
-                    const auto end = distances.end();
-                    const auto m = std::numeric_limits<int>::max();
-                    return ((lnode != end) ? lnode->second : m)
-                         < ((rnode != end) ? rnode->second : m);
-                });
+        node cur = to_visit.top();
+        to_visit.pop();
 
-        if (min_node_it == to_visit.end() || was_visited.contains(*min_node_it)) {
-            cout << "Breaking early! Potential problem?";
-            break;
+        dbg << "Looking at " << cur << "\n";
+
+        if (was_visited.contains(cur)) {
+            // possible depending on the number of candidate nodes in flight
+            // to be looked at. candidate set is supposed to be a *set*
+            continue;
         }
 
-        auto cur   = *min_node_it;
         auto cx    = cur.col;
         auto cy    = cur.row;
         auto steps = cur.consec_step;
@@ -288,7 +297,7 @@ int main(int argc, char **argv)
             const char *dn = dir_name(new_dir);
             dbg << "  considering " << dn << "\n";
 
-            if (new_dir == wrong_dir[(int) ldir]) {
+            if (new_dir == wrong_dir[(int) ldir] && steps) {
                 dbg << "  " << dn << " won't work, wrong dir coming from " << dir_name(ldir) << "\n";
                 continue; // no backward turns
             }
@@ -314,12 +323,13 @@ int main(int argc, char **argv)
 
             node candidate { static_cast<pos_t>(ny), static_cast<pos_t>(nx), new_steps, new_dir };
             if (!was_visited.contains(candidate)) {
-                to_visit.push_back(candidate);
+                to_visit.push(candidate);
                 int new_dist = distances[cur] + (g.at(nx, ny) - '0');
+
                 if (!distances.contains(candidate) || distances[candidate] > new_dist) {
-                    dbg << "  did add new move to (" << nx+1 << "," << ny+1 << "), distance " << distances[candidate] << "\n";
                     distances[candidate] = new_dist;
                     predecessors[candidate] = cur;
+                    dbg << "  did add new move to (" << nx+1 << "," << ny+1 << "), distance " << distances[candidate] << "\n";
                 } else {
                     dbg << "  already going to visit (" << nx+1 << "," << ny+1 << "), distance " << distances[candidate] << "\n";
                 }
@@ -330,7 +340,6 @@ int main(int argc, char **argv)
         }
 
         was_visited[cur] = true;
-        std::erase(to_visit, cur);
 
         dbg << "Visited " << cur << ". Now " << to_visit.size() << " elements to visit, "
             << distances.size() << " known distances, " << was_visited.size() <<  " already visited.\n";
