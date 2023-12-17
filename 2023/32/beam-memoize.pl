@@ -24,6 +24,7 @@ $" = ', '; # For arrays interpolated into strings
 my @grids;   # Mirror grid
 my ($h, $w); # Grid dimension
 my %cache;   # Memoization cache
+my %cycles;  # Loops to be fixed up
 
 # Code (Aux subs below)
 
@@ -38,6 +39,16 @@ if (G_DEBUG_INPUT) {
     say join('', $_->@*) foreach @grids;
     say "";
 }
+
+# For fun, run the initial_dir[0] and then the initial_dir[5], and compare to
+# what you get if you run initial_dir[5] by itself. Since the current code
+# gives up on a segment once a cycle is detected, the cache is susceptible to
+# the order that you try to interrogate a potential cycle, potentially leaving
+# an eventually-cached entry for an (x,y,dir) short of all the cells it could
+# cover (because the other cells in the cycle were made part of a different
+# cache entry).
+#
+# Probably a way to fix this by thinking smarter about but not there right now.
 
 my @initial_dirs;
 push @initial_dirs, map { ([0, $_, 'E'], [$w - 1, $_, 'W']) } 0..($h-1);
@@ -60,6 +71,27 @@ for my $init (@initial_dirs) {
         select()->flush();
         $last_update = $cur_update;
     }
+
+    # Doing this to try to 'patch up' cached cycles seems to fix up some of the
+    # correctness issues... but not all.  And it's so SLOOW.  But it does at
+    # least find the appropriate max to solve the puzzle, so there's that.
+    while (my ($key, $cycles) = each %cycles) {
+        my $found = 0;
+        my @c = grep { $found ||= $key eq $_ ; $found } $cycles->@*;
+
+        # Need to make sure every one of these segments is included in the cache
+        # for each of these entries...
+        my @reachable = map { $_->@* } @cache{@c};
+
+        # de-dup cruft from potential multiple results. Same method as in
+        # energized_cells.
+        my %h = map { (join('_', $_->@*), $_) } @reachable;
+        my @reachable_set = values %h;
+        my $num_reachable = num_covered(@reachable_set);
+        @cache{@c} = (\@reachable_set) x @c;
+    }
+
+    %cycles = ();
 }
 
 say "";
@@ -82,7 +114,7 @@ sub load_input(@paras)
 
 # returns a list of all line segments (x, y, dir, length) reachable from
 # the given x,y,dir combination
-sub energized_cells ($x, $y, $indir)
+sub energized_cells ($x, $y, $indir, @stack)
 {
     no warnings 'recursion';
 
@@ -91,16 +123,25 @@ sub energized_cells ($x, $y, $indir)
         '\E' => 'S', '\W' => 'N', '\N' => 'W', '\S' => 'E',
     );
 
-    my $key = "$x/$y/$indir";
-    return $cache{$key} if exists $cache{$key};
+    my $key = join('_', $x, $y, $indir);
+
+    if (($cache{$key} // '') eq 'cycle') {
+        # use later to patch up cache to encompass entire cycle
+        $cycles{$key} = [@stack];
+        return ();
+    }
+
+    return $cache{$key}->@* if exists $cache{$key};
+
     my $set = sub ($x, $y, $indir, @segments) {
-        my $key = "$x/$y/$indir";
-        $cache{$key} = [@segments];
-        return $cache{$key};
+        my $key = join('_', $x, $y, $indir);
+        $cache{$key} = \@segments;
+        return @segments;
     };
 
     # temp for now to break cycles. We will overwrite with right value.
-    $set->($x, $y, $indir, ());
+    $cache{$key} = 'cycle';
+    push @stack, $key;
 
     my $tile = $grids[$y]->[$x];
     my $horiz = ($indir eq 'E' or $indir eq 'W');
@@ -114,12 +155,12 @@ sub energized_cells ($x, $y, $indir)
         if ($indir eq 'E') {
             my $end = ((first { $row->[$_] ne '-' and $row->[$_] ne '.' } $x..($w-1)) // $w) - 1;
             @list = [$x, $y, $indir, $end - $x + 1];
-            push @list, energized_cells($end + 1, $y, $indir)->@*
+            push @list, energized_cells($end + 1, $y, $indir, @stack)
                 if $end < ($w - 1); # splitters
         } else {
             my $end = ((first { $row->[$_] ne '-' and $row->[$_] ne '.' } reverse 0..$x) // -1) + 1;
             @list = [$x, $y, $indir, $x - $end + 1];
-            push @list, energized_cells($end - 1, $y, $indir)->@*
+            push @list, energized_cells($end - 1, $y, $indir, @stack)
                 if $end > 0;
         }
     }
@@ -128,27 +169,27 @@ sub energized_cells ($x, $y, $indir)
         if ($indir eq 'S') {
             my $end = ((first { $grids[$_]->[$x] ne '|' and $grids[$_]->[$x] ne '.' } $y..($h-1)) // $h) - 1;
             @list = [$x, $y, $indir, $end - $y + 1];
-            push @list, energized_cells($x, $end + 1, $indir)->@*
+            push @list, energized_cells($x, $end + 1, $indir, @stack)
                 if $end < ($h - 1);
         } else {
             my $end = ((first { $grids[$_]->[$x] ne '|' and $grids[$_]->[$x] ne '.' } reverse 0..$y) // -1) + 1;
             @list = [$x, $y, $indir, $y - $end + 1];
-            push @list, energized_cells($x, $end - 1, $indir)->@*
+            push @list, energized_cells($x, $end - 1, $indir, @stack)
                 if $end > 0;
         }
     }
     elsif ($tile eq '|' && $horiz) {
         @list = [$x, $y, $indir, 1];
-        push @list, energized_cells($x, $y - 1, 'N')->@*
+        push @list, energized_cells($x, $y - 1, 'N', @stack)
             if $y > 0;
-        push @list, energized_cells($x, $y + 1, 'S')->@*
+        push @list, energized_cells($x, $y + 1, 'S', @stack)
             if $y < ($h - 1);
     }
     elsif ($tile eq '-' && !$horiz) {
         @list = [$x, $y, $indir, 1];
-        push @list, energized_cells($x + 1, $y, 'E')->@*
+        push @list, energized_cells($x + 1, $y, 'E', @stack)
             if $x < ($w - 1);
-        push @list, energized_cells($x - 1, $y, 'W')->@*
+        push @list, energized_cells($x - 1, $y, 'W', @stack)
             if $x > 0;
     }
     else {
@@ -162,30 +203,24 @@ sub energized_cells ($x, $y, $indir)
         my $outy = $y + ($yoff{$outdir} // 0);
 
         if ($outx >= 0 && $outx < $w && $outy >= 0 && $outy < $h) {
-            push @list, energized_cells($outx, $outy, $outdir)->@*;
+            push @list, energized_cells($outx, $outy, $outdir, @stack);
         }
     }
 
-    # de-dup cruft from potential multiple results. 0 entries are
-    # only possible in cache transiently from anti-cycle logic
-    my %h =
-        map { (join(',', $_->@*), $_) }
-        grep { $_->[3] != 0 }
-            @list;
+    # de-dup cruft from potential multiple results. This is just working to
+    # ensure identical line segments stringify to identical strings to abuse
+    # uniqueness of hash entries.
+    my %h = map { (join('_', $_->@*), $_) } @list;
     die "how did we get here???" if scalar values %h == 0;
     return $set->($x, $y, $indir, values %h);
 }
 
-sub num_energized ($x, $y, $initialdir)
+sub num_covered(@segments)
 {
-    # clear state
+    my %visited;
 
     my %xoff = (E => 1, W => -1);
     my %yoff = (S => 1, N => -1);
-
-    my @segments = energized_cells($x, $y, $initialdir)->@*;
-
-    my %visited;
 
     for (@segments) {
         my ($x, $y, $dir, $len) = $_->@*;
@@ -197,7 +232,16 @@ sub num_energized ($x, $y, $initialdir)
         }
     }
 
-    delete $cache{"$x/$y/$initialdir"};
-
     return scalar %visited;
+}
+
+sub num_energized ($x, $y, $initialdir)
+{
+    # have to reset because the cache is not idempotent across multiple
+    # initialdirs
+#   %cache = (); # Uncomment to ensure correctness at expense of speed.
+
+    my @segments = energized_cells($x, $y, $initialdir);
+
+    return num_covered(@segments);
 }
