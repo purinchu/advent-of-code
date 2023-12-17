@@ -268,8 +268,6 @@ int main(int argc, char **argv)
         node cur = to_visit.top();
         to_visit.pop();
 
-        dbg << "Looking at " << cur << "\n";
-
         if (was_visited.contains(cur)) {
             // possible depending on the number of candidate nodes in flight
             // to be looked at. candidate set is supposed to be a *set*
@@ -280,8 +278,6 @@ int main(int argc, char **argv)
         auto cy    = cur.row;
         auto steps = cur.consec_step;
         Dir ldir   = cur.dir_in;
-
-        dbg << "Cur: [" << cur << "]. distance " << distances[cur] << "\n";
 
         static const std::array dirs      = { north, south, west, east };
         static const std::array wrong_dir = { east, west, south, north };
@@ -294,32 +290,22 @@ int main(int argc, char **argv)
 
         // Go through all possible directions and new nodes
         for (const auto &new_dir : dirs) {
-            const char *dn = dir_name(new_dir);
-            dbg << "  considering " << dn << "\n";
-
             if (new_dir == wrong_dir[(int) ldir] && steps) {
-                dbg << "  " << dn << " won't work, wrong dir coming from " << dir_name(ldir) << "\n";
                 continue; // no backward turns
             }
 
             int nx = cx + x_off[(int) new_dir];
             int ny = cy + y_off[(int) new_dir];
 
-            dbg << "  " << dn << " gives x,y offset of (" << x_off[(int)new_dir] << "," << y_off[(int)new_dir] << ")\n";
-
             if (nx < 0 || ny < 0 || nx >= W || ny >= H) {
-                dbg << "  " << dn << " won't work, takes us off board. " << nx << ' ' << ny << "\n";
                 continue; // stay on the board
             }
 
             int new_steps = (ldir == new_dir) ? steps + 1 : 1;
 
             if (new_steps > 3) {
-                dbg << "  " << dn << " won't work, 4 consecutive steps.\n";
                 continue; // no lengthy straight-line distances
             }
-
-            dbg << "  may add move to (" << nx + 1 << "," << ny + 1 << ") if distance works out.\n";
 
             node candidate { static_cast<pos_t>(ny), static_cast<pos_t>(nx), new_steps, new_dir };
             if (!was_visited.contains(candidate)) {
@@ -329,20 +315,11 @@ int main(int argc, char **argv)
                 if (!distances.contains(candidate) || distances[candidate] > new_dist) {
                     distances[candidate] = new_dist;
                     predecessors[candidate] = cur;
-                    dbg << "  did add new move to (" << nx+1 << "," << ny+1 << "), distance " << distances[candidate] << "\n";
-                } else {
-                    dbg << "  already going to visit (" << nx+1 << "," << ny+1 << "), distance " << distances[candidate] << "\n";
                 }
-            } else {
-                dbg << "  did not add move to (" << nx+1 << "," << ny+1 << ") as it's already visited.\n";
-                dbg << "  (distance is " << distances[candidate] << ")\n";
             }
         }
 
         was_visited[cur] = true;
-
-        dbg << "Visited " << cur << ". Now " << to_visit.size() << " elements to visit, "
-            << distances.size() << " known distances, " << was_visited.size() <<  " already visited.\n";
     }
 
     cout << "Done, looking now...\n";
