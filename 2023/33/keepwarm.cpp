@@ -22,8 +22,9 @@
 
 // config
 
-static const bool g_show_input = true;
+static const bool g_show_input = false;
 static const bool g_show_final = false;
+static const bool g_debug_log  = false;
 
 // common types
 
@@ -183,7 +184,10 @@ static const char *dir_name(Dir d)
 std::ostream& operator <<(std::ostream &os, const node &n)
 {
     std::ios::fmtflags os_flags(os.flags());
-    os << std::setw(2) << (n.col+1) << "," << std::setw(2) << (n.row+1) << " " << dir_name(n.dir_in) << " " << n.consec_step << " steps";
+    os << std::setw(2) << (n.col+1) << ","
+        << std::setw(2) << (n.row+1) << " "
+        << (n.consec_step ? dir_name(n.dir_in) : "  -  ") << " "
+        << n.consec_step << " steps";
     os.flags(os_flags);
     return os;
 }
@@ -230,7 +234,7 @@ int main(int argc, char **argv)
     }
 
     std::ofstream dbg;
-    dbg.open("debug.log");
+    dbg.open(g_debug_log ? "debug.log" : "/dev/null");
 
     const auto W = g.width(), H = g.height();
 
@@ -263,48 +267,72 @@ int main(int argc, char **argv)
         }
 
         auto cur   = *min_node_it;
-        auto cx    = cur.col, cy = cur.row;
+        auto cx    = cur.col;
+        auto cy    = cur.row;
         auto steps = cur.consec_step;
         Dir ldir   = cur.dir_in;
 
-        dbg << "Cur: " << cx << "," << cy << " distance " << distances[cur] << "\n";
+        dbg << "Cur: [" << cur << "]. distance " << distances[cur] << "\n";
 
         static const std::array dirs      = { north, south, west, east };
         static const std::array wrong_dir = { east, west, south, north };
+
+        // new_dir is the direction we were going when we came into the new
+        // cell. eg. to be 'south', we'd have come from the cell directly above
+        // so the offset would be +1 (to get the right y from the cell above's y)
         static const std::array x_off     = { -1, 1, 0, 0 };
         static const std::array y_off     = { 0, 0, -1, 1 };
 
         // Go through all possible directions and new nodes
         for (const auto &new_dir : dirs) {
+            const char *dn = dir_name(new_dir);
+            dbg << "  considering " << dn << "\n";
+
             if (new_dir == wrong_dir[(int) ldir]) {
+                dbg << "  " << dn << " won't work, wrong dir coming from " << dir_name(ldir) << "\n";
                 continue; // no backward turns
             }
 
             int nx = cx + x_off[(int) new_dir];
             int ny = cy + y_off[(int) new_dir];
 
+            dbg << "  " << dn << " gives x,y offset of (" << x_off[(int)new_dir] << "," << y_off[(int)new_dir] << ")\n";
+
             if (nx < 0 || ny < 0 || nx >= W || ny >= H) {
+                dbg << "  " << dn << " won't work, takes us off board. " << nx << ' ' << ny << "\n";
                 continue; // stay on the board
             }
 
             int new_steps = (ldir == new_dir) ? steps + 1 : 1;
 
             if (new_steps > 3) {
+                dbg << "  " << dn << " won't work, 4 consecutive steps.\n";
                 continue; // no lengthy straight-line distances
             }
+
+            dbg << "  may add move to (" << nx + 1 << "," << ny + 1 << ") if distance works out.\n";
 
             node candidate { static_cast<pos_t>(ny), static_cast<pos_t>(nx), new_steps, new_dir };
             if (!was_visited.contains(candidate)) {
                 to_visit.push_back(candidate);
-                predecessors[candidate] = cur;
-                distances[candidate] = (distances[cur] + (g.at(nx, ny) - '0'));
+                int new_dist = distances[cur] + (g.at(nx, ny) - '0');
+                if (!distances.contains(candidate) || distances[candidate] > new_dist) {
+                    dbg << "  did add new move to (" << nx+1 << "," << ny+1 << "), distance " << distances[candidate] << "\n";
+                    distances[candidate] = new_dist;
+                    predecessors[candidate] = cur;
+                } else {
+                    dbg << "  already going to visit (" << nx+1 << "," << ny+1 << "), distance " << distances[candidate] << "\n";
+                }
+            } else {
+                dbg << "  did not add move to (" << nx+1 << "," << ny+1 << ") as it's already visited.\n";
+                dbg << "  (distance is " << distances[candidate] << ")\n";
             }
         }
 
         was_visited[cur] = true;
         std::erase(to_visit, cur);
 
-        dbg << "Visited " << cx << "," << cy << ". Now " << to_visit.size() << " elements to visit, "
+        dbg << "Visited " << cur << ". Now " << to_visit.size() << " elements to visit, "
             << distances.size() << " known distances, " << was_visited.size() <<  " already visited.\n";
     }
 
@@ -326,12 +354,14 @@ int main(int argc, char **argv)
 
     cout << "Minimum distance of those results was " << min_dist << "\n";
 
-    int sum = 0;
-    while(predecessors.contains(min_node)) {
-        int d = (g.at(min_node.col, min_node.row) - '0');
-        sum += d;
-        cout << "to: [" << min_node << "] from: [" << predecessors[min_node] << "] " << d << " -> " << sum << "\n";
-        min_node = predecessors[min_node];
+    if constexpr (g_show_final) {
+        int sum = 0;
+        while(predecessors.contains(min_node)) {
+            int d = (g.at(min_node.col, min_node.row) - '0');
+            sum += d;
+            cout << "to: [" << min_node << "] from: [" << predecessors[min_node] << "] " << d << " -> " << sum << "\n";
+            min_node = predecessors[min_node];
+        }
     }
 
     return 0;
