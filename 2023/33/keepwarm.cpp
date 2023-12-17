@@ -72,7 +72,8 @@ struct grid
     pos_t m_width = 0, m_height = 0;
 };
 
-    template <std::integral T>
+//{{{
+template <std::integral T>
 void grid<T>::add_line(const std::string &line)
 {
     if(!m_width) { m_width = line.size(); }
@@ -134,7 +135,7 @@ auto grid<T>::extract_line(const pos_t pos, const Dir dir) const
     return result;
 }
 
-    template <std::integral T>
+template <std::integral T>
 void grid<T>::set_line(const container_t &line, const pos_t pos, const Dir dir)
 {
     const auto &[start, end, stride] = steps_for_dir(pos, dir);
@@ -150,6 +151,7 @@ char grid<T>::at(const pos_t col, const pos_t row) const
 {
     return m_grid[row * m_width + col];
 }
+//}}}
 
 static const char *dir_name(Dir d)
 {
@@ -298,3 +300,5 @@ int main(int argc, char **argv)
 
     return 0;
 }
+
+// vim: fdm=marker:
