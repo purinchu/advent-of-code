@@ -24,7 +24,7 @@ $" = ', '; # For arrays interpolated into strings
 my @grids; # Mirror grid
 my @tiles; # Portions of grid energized
 my @beams; # Beams of light in motion
-my %visited_tiles; # Detects cycles of beams
+my @visited_tiles; # Detects cycles of beams
 my ($h, $w); # Grid dimension
 
 # Code (Aux subs below)
@@ -136,11 +136,12 @@ sub draw_screen_overlayed
 
 sub visit ($x, $y, $dir)
 {
+    state %dirs = (N => 0, S => 1, E => 2, W => 3);
     $tiles[$y]->[$x] = '#';
 
     # need separate cache because multiple beams can appear going different
     # directions. We can only skip if direction was also seen
-    $visited_tiles{"$x/$y/$dir"} = 1;
+    $visited_tiles[$y * $w + $x] |= 1 << $dirs{$dir};
 }
 
 sub add_next_moves ($x, $y, $indir)
@@ -194,6 +195,7 @@ sub add_next_moves ($x, $y, $indir)
 # beam for later processing
 sub add_beam ($sx, $sy, $dir)
 {
+    state %dirs = (N => 0, S => 1, E => 2, W => 3);
     state %xoff = (E => 1, W => -1);
     state %yoff = (S => 1, N => -1);
 
@@ -201,7 +203,7 @@ sub add_beam ($sx, $sy, $dir)
     my $y = $sy + ($yoff{$dir} // 0);
 
     return unless ($x >= 0 && $x < $w && $y >= 0 && $y < $h);
-    return if exists $visited_tiles{"$x/$y/$dir"};
+    return if (($visited_tiles[$y * $w + $x] // 0) & (1 << $dirs{$dir}));
 
     push @beams, [$dir, $x, $y];
 }
@@ -211,7 +213,7 @@ sub num_energized ($x, $y, $initialdir)
     # clear state
     @beams = [$initialdir, $x, $y];
     @tiles = map { [('.') x (@$_)] } @grids;
-    %visited_tiles = ();
+    @visited_tiles = ();
 
     if (G_DEBUG_ANIMATE) {
         # use alternate terminal screen if we want to show in situ progress
