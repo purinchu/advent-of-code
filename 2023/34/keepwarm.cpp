@@ -258,12 +258,7 @@ int main(int argc, char **argv)
     unordered_map<node, node> predecessors;
 
     const auto node_distance_compare = [&distances](const node &l, const node &r) {
-        const auto lnode = distances.find(l);
-        const auto rnode = distances.find(r);
-        const auto end = distances.end();
-        const auto m = std::numeric_limits<int>::max();
-        return ((lnode != end) ? lnode->second : m)
-             > ((rnode != end) ? rnode->second : m);
+        return distances.find(l)->second > distances.find(r)->second;
     };
 
     std::priority_queue<
@@ -361,15 +356,15 @@ int main(int argc, char **argv)
                     continue;
                 }
 
-                to_visit.push(candidate);
-                num_neighbor_added++;
-
                 if (!distances.contains(candidate) || distances[candidate] > new_dist) {
                     distances[candidate] = new_dist;
                     predecessors[candidate] = cur;
 
                     num_distance_updates++;
                 }
+
+                to_visit.push(candidate);
+                num_neighbor_added++;
             }
         }
 
