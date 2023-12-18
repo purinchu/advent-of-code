@@ -324,11 +324,11 @@ int main(int argc, char **argv)
 
             int new_steps = (ldir == new_dir) ? steps + 1 : 1;
 
-            if (new_steps > 10) {
+            if (new_steps > (part1_rules ? 3 : 10)) {
                 continue; // no lengthy straight-line distances
             }
 
-            if (steps < 4 && steps && ldir != new_dir) {
+            if (!part1_rules && steps < 4 && steps && ldir != new_dir) {
                 continue; // can't turn until 4 consecutive steps
             }
 
@@ -355,10 +355,10 @@ int main(int argc, char **argv)
 
     vector<typename std::unordered_map<node, int>::value_type> results;
     std::copy_if(distances.begin(), distances.end(), std::back_inserter(results),
-            [W, H](const auto &p) {
+            [W, H, part1_rules](const auto &p) {
                 return p.first.row == (H - 1) &&
                     p.first.col == (W - 1) &&
-                    p.first.consec_step >= 4;
+                    (part1_rules || p.first.consec_step >= 4);
             });
 
     cout << "Found " << results.size() << " possible results\n";
