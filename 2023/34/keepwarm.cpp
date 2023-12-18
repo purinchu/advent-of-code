@@ -262,6 +262,11 @@ int main(int argc, char **argv)
         return (diff == 0) ? (l.consec_step > r.consec_step) : (diff > 0);
     };
 
+    const auto dist = [&distances](const node n) -> int {
+        const auto res = distances.try_emplace(n, std::numeric_limits<int>::max());
+        return res.first->second;
+    };
+
     std::priority_queue<
         node, vector<node>,
         decltype(node_distance_compare)
@@ -291,7 +296,7 @@ int main(int argc, char **argv)
         node cur = to_visit.top();
         to_visit.pop();
 
-        if (distances[cur] > max_distance) {
+        if (dist(cur) > max_distance) {
             was_visited[cur] = true;
             continue;
         }
@@ -346,7 +351,7 @@ int main(int argc, char **argv)
 
             node candidate { static_cast<pos_t>(ny), static_cast<pos_t>(nx), new_steps, new_dir };
             if (!was_visited.contains(candidate)) {
-                int new_dist = distances[cur] + (g.at(nx, ny) - '0');
+                int new_dist = dist(cur) + (g.at(nx, ny) - '0');
 
                 if (nx == (W - 1) && ny == (H - 1) &&
                     (part1_rules || candidate.consec_step >= 4))
@@ -359,7 +364,7 @@ int main(int argc, char **argv)
                     continue;
                 }
 
-                if (!distances.contains(candidate) || distances[candidate] > new_dist) {
+                if (dist(candidate) > new_dist) {
                     distances[candidate] = new_dist;
                     predecessors[candidate] = cur;
 
