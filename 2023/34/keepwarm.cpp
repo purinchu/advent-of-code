@@ -258,7 +258,8 @@ int main(int argc, char **argv)
     unordered_map<node, node> predecessors;
 
     const auto node_distance_compare = [&distances](const node &l, const node &r) {
-        return distances.find(l)->second > distances.find(r)->second;
+        auto diff = distances.find(l)->second - distances.find(r)->second;
+        return (diff == 0) ? (l.consec_step > r.consec_step) : (diff > 0);
     };
 
     std::priority_queue<
