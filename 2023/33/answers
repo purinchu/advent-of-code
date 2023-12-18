@@ -1,3 +1,3 @@
 sample3 should give 9. Will break naive Dijkstra.
 sample4 should give 7. Came from AoC subreddit but not sure where.
-sample5 should give 49, another testcase for encoding num_steps into node. https://imgur.com/AePD7ht
+sample5 should give 47, another testcase for encoding num_steps into node. https://imgur.com/AePD7ht
