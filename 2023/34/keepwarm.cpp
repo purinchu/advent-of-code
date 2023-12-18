@@ -259,17 +259,25 @@ int main(int argc, char **argv)
 
     to_visit.push(start);
 
+    // stats
+    uint_fast64_t num_visits = 0, num_neighbor_passes = 0;
+    uint_fast64_t num_neighbor_added = 0, num_distance_updates = 0;
+
     while(!to_visit.empty()) {
         using enum Dir;
 
         node cur = to_visit.top();
         to_visit.pop();
 
+        num_visits++;
+
         if (was_visited.contains(cur)) {
             // possible depending on the number of candidate nodes in flight
             // to be looked at. candidate set is supposed to be a *set*
             continue;
         }
+
+        num_neighbor_passes++;
 
         auto cx    = cur.col;
         auto cy    = cur.row;
@@ -313,9 +321,13 @@ int main(int argc, char **argv)
                 to_visit.push(candidate);
                 int new_dist = distances[cur] + (g.at(nx, ny) - '0');
 
+                num_neighbor_added++;
+
                 if (!distances.contains(candidate) || distances[candidate] > new_dist) {
                     distances[candidate] = new_dist;
                     predecessors[candidate] = cur;
+
+                    num_distance_updates++;
                 }
             }
         }
@@ -366,6 +378,13 @@ int main(int argc, char **argv)
             }
             cout << "\e[0m\n";
         }
+
+        cout << "\nstats: ";
+        cout << "visits: " << num_visits;
+        cout << ", neighbor_passes: " << num_neighbor_passes;
+        cout << ", neighbor_added: " << num_neighbor_added;
+        cout << ", distance_updates: " << num_distance_updates;
+        cout << "\n";
     }
 
     return 0;
