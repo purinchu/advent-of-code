@@ -22,6 +22,8 @@
 #include <utility>
 #include <vector>
 
+#include <unistd.h>
+
 // config
 
 static const bool g_show_input = false;
@@ -201,7 +203,21 @@ int main(int argc, char **argv)
     using std::ifstream;
     using std::string;
 
-    if (argc < 2) {
+    bool part1_rules = false;
+    int opt;
+    while ((opt = getopt(argc, argv, "1h")) != -1) {
+        switch(opt) {
+            case 'h': cout << "-1 to use part 1 rules. input filename required.\n";
+                return 0;
+            case '1': part1_rules = true;
+                break;
+            default:
+                cerr << "error detected. input filename required.\n";
+                return 1;
+        }
+    }
+
+    if (optind >= argc) {
         std::cerr << "Enter a file to read\n";
         return 1;
     }
@@ -212,7 +228,7 @@ int main(int argc, char **argv)
     grid<std::uint16_t> g;
 
     try {
-        input.open(argv[1]);
+        input.open(argv[optind]);
         string line;
         while (!input.eof() && std::getline(input, line)) {
             g.add_line(line);
