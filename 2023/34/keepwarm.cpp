@@ -348,7 +348,9 @@ int main(int argc, char **argv)
             if (!was_visited.contains(candidate)) {
                 int new_dist = distances[cur] + (g.at(nx, ny) - '0');
 
-                if (nx == (W - 1) && ny == (H - 1)) {
+                if (nx == (W - 1) && ny == (H - 1) &&
+                    (part1_rules || candidate.consec_step >= 4))
+                {
                     max_distance = std::min(max_distance, new_dist);
                 }
 
