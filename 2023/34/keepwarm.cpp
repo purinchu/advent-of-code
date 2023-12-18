@@ -6,6 +6,7 @@
 #include <concepts>
 #include <cstdint>
 #include <cstdlib>
+#include <deque>
 #include <fstream>
 #include <functional>
 #include <iomanip>
@@ -24,7 +25,7 @@
 // config
 
 static const bool g_show_input = false;
-static const bool g_show_final = false;
+static const bool g_show_final = true;
 
 // common types
 
@@ -249,7 +250,7 @@ int main(int argc, char **argv)
     };
 
     std::priority_queue<
-        node, vector<node>,
+        node, std::deque<node>,
         decltype(node_distance_compare)
         > to_visit(node_distance_compare);
 
@@ -346,12 +347,24 @@ int main(int argc, char **argv)
     cout << "Minimum distance of those results was " << min_dist << "\n";
 
     if constexpr (g_show_final) {
-        int sum = 0;
+        std::unordered_map<uint32_t,bool> on_path;
+
+        // pre-process where path landed then print it to console
         while(predecessors.contains(min_node)) {
-            int d = (g.at(min_node.col, min_node.row) - '0');
-            sum += d;
-            cout << "to: [" << min_node << "] from: [" << predecessors[min_node] << "] " << d << " -> " << sum << "\n";
+            on_path[(min_node.col << 16) | min_node.row] = true;
             min_node = predecessors[min_node];
+        }
+
+        cout << "\n";
+        for (int j = 0; j < H; j++) {
+            for (int i = 0; i < W; i++) {
+                if (on_path.contains((i << 16) | j)) {
+                    cout << "\e[31;42m" << g.at(i, j);
+                } else {
+                    cout << "\e[0m" << g.at(i, j);
+                }
+            }
+            cout << "\e[0m\n";
         }
     }
 
