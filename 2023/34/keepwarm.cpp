@@ -3,6 +3,7 @@
 // Grid stuff
 
 #include <algorithm>
+#include <chrono>
 #include <concepts>
 #include <cstdint>
 #include <cstdlib>
@@ -266,7 +267,7 @@ int main(int argc, char **argv)
     };
 
     std::priority_queue<
-        node, std::deque<node>,
+        node, vector<node>,
         decltype(node_distance_compare)
         > to_visit(node_distance_compare);
 
@@ -280,11 +281,24 @@ int main(int argc, char **argv)
     uint_fast64_t cumu_visits = 0;
     uint_fast64_t num_neighbor_added = 0, num_distance_updates = 0;
 
+    // if we find the end we will skip processing all nodes with a higher
+    // distance than this
+    int max_distance = std::numeric_limits<int>::max();
+
+    using namespace std::chrono;
+
+    time_point t1 = steady_clock::now();
+
     while(!to_visit.empty()) {
         using enum Dir;
 
         node cur = to_visit.top();
         to_visit.pop();
+
+        if (distances[cur] > max_distance) {
+            was_visited[cur] = true;
+            continue;
+        }
 
         num_visits++;
         cumu_visits += to_visit.size();
@@ -336,9 +350,18 @@ int main(int argc, char **argv)
 
             node candidate { static_cast<pos_t>(ny), static_cast<pos_t>(nx), new_steps, new_dir };
             if (!was_visited.contains(candidate)) {
-                to_visit.push(candidate);
                 int new_dist = distances[cur] + (g.at(nx, ny) - '0');
 
+                if (nx == (W - 1) && ny == (H - 1)) {
+                    max_distance = std::min(max_distance, new_dist);
+                }
+
+                if (new_dist > max_distance) {
+                    was_visited[candidate] = true;
+                    continue;
+                }
+
+                to_visit.push(candidate);
                 num_neighbor_added++;
 
                 if (!distances.contains(candidate) || distances[candidate] > new_dist) {
@@ -353,7 +376,7 @@ int main(int argc, char **argv)
         was_visited[cur] = true;
     }
 
-    cout << "Done, looking now...\n";
+    time_point t2 = steady_clock::now();
 
     vector<typename std::unordered_map<node, int>::value_type> results;
     std::copy_if(distances.begin(), distances.end(), std::back_inserter(results),
@@ -362,8 +385,6 @@ int main(int argc, char **argv)
                     p.first.col == (W - 1) &&
                     (part1_rules || p.first.consec_step >= 4);
             });
-
-    cout << "Found " << results.size() << " possible results\n";
 
     int min_dist = std::numeric_limits<int>::max();
     node min_node;
@@ -374,7 +395,7 @@ int main(int argc, char **argv)
         }
     }
 
-    cout << "Minimum distance of those results was " << min_dist << "\n";
+    cout << "Min. distance: " << min_dist << ", from " << results.size() << " possible nodes.\n";
 
     if constexpr (g_show_final) {
         std::unordered_map<uint32_t,bool> on_path;
@@ -406,6 +427,7 @@ int main(int argc, char **argv)
         cout << "\n";
         cout << "grid size: " << W * H;
         cout << ", avg neighbors per grid cell: " << num_neighbor_added / (W * H);
+        cout << ", time: " << duration<double>(t2 - t1).count();
         cout << "\n";
     }
 

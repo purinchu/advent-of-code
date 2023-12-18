@@ -9,6 +9,7 @@ CXX=clang++
 
 $(TARGET): $(TARGET).cpp Makefile
 	$(CXX) -o $@ -stdlib=libc++ -fsanitize=address,undefined -std=c++20 -Wall -W -Wextra -O2 -pipe -march=native $<
+#	$(CXX) -o $@ -fsanitize=address,undefined -std=c++20 -Wall -W -Wextra -O2 -pipe -march=native $<
 
 test: $(TARGET) $(FILE_SAMPLE)
 	@./$(TARGET) $(FILE_SAMPLE)
