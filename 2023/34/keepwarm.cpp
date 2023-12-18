@@ -277,6 +277,7 @@ int main(int argc, char **argv)
 
     // stats
     uint_fast64_t num_visits = 0, num_neighbor_passes = 0;
+    uint_fast64_t cumu_visits = 0;
     uint_fast64_t num_neighbor_added = 0, num_distance_updates = 0;
 
     while(!to_visit.empty()) {
@@ -286,6 +287,7 @@ int main(int argc, char **argv)
         to_visit.pop();
 
         num_visits++;
+        cumu_visits += to_visit.size();
 
         if (was_visited.contains(cur)) {
             // possible depending on the number of candidate nodes in flight
@@ -397,9 +399,13 @@ int main(int argc, char **argv)
 
         cout << "\nstats: ";
         cout << "visits: " << num_visits;
+        cout << ", avg visit queue: " << cumu_visits / num_visits;
         cout << ", neighbor_passes: " << num_neighbor_passes;
         cout << ", neighbor_added: " << num_neighbor_added;
         cout << ", distance_updates: " << num_distance_updates;
+        cout << "\n";
+        cout << "grid size: " << W * H;
+        cout << ", avg neighbors per grid cell: " << num_neighbor_added / (W * H);
         cout << "\n";
     }
 
