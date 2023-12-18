@@ -253,18 +253,37 @@ int main(int argc, char **argv)
 
     const auto W = g.width(), H = g.height();
 
-    unordered_map<node, int> distances;
+    vector<int> distances;
     unordered_map<node, bool> was_visited;
     unordered_map<node, node> predecessors;
 
-    const auto node_distance_compare = [&distances](const node &l, const node &r) {
-        auto diff = distances.find(l)->second - distances.find(r)->second;
-        return (diff == 0) ? (l.consec_step > r.consec_step) : (diff > 0);
+    int max_steps = part1_rules ? 3 : 10;
+    distances.assign(W * H * max_steps * 4, std::numeric_limits<int>::max());
+
+    const auto idx_from_node = [W, max_steps] (const node n) {
+        // There are 4 * 3 * W * H cells
+        // [ N ] [ E ] [ S ] [ W ] [ N ] [ E ] [ S ] [ W ]
+        // [      steps = 1      ] [      steps = 2      ]
+        size_t idx;
+        int s = (n.row == 0 && n.col == 0) ? 0 : (n.consec_step - 1);
+        idx  = n.row * W * max_steps * 4;
+        idx += n.col     * max_steps * 4;
+        idx += s * 4;
+        idx += (int) n.dir_in;
+        return idx;
     };
 
-    const auto dist = [&distances](const node n) -> int {
-        const auto res = distances.try_emplace(n, std::numeric_limits<int>::max());
-        return res.first->second;
+    const auto dist = [&](const node n) -> int {
+        return distances[idx_from_node(n)];
+    };
+
+    const auto set_dist = [&](const node n, int d) {
+        distances[idx_from_node(n)] = d;
+    };
+
+    const auto node_distance_compare = [&](const node &l, const node &r) {
+        auto diff = dist(l) - dist(r);
+        return (diff == 0) ? (l.consec_step > r.consec_step) : (diff > 0);
     };
 
     std::priority_queue<
@@ -273,7 +292,7 @@ int main(int argc, char **argv)
         > to_visit(node_distance_compare);
 
     node start { };
-    distances[start] = 0;
+    set_dist(start, 0);
 
     to_visit.push(start);
 
@@ -365,7 +384,7 @@ int main(int argc, char **argv)
                 }
 
                 if (dist(candidate) > new_dist) {
-                    distances[candidate] = new_dist;
+                    set_dist(candidate, new_dist);
                     predecessors[candidate] = cur;
 
                     num_distance_updates++;
@@ -381,24 +400,30 @@ int main(int argc, char **argv)
 
     time_point t2 = steady_clock::now();
 
-    vector<typename std::unordered_map<node, int>::value_type> results;
-    std::copy_if(distances.begin(), distances.end(), std::back_inserter(results),
-            [W, H, part1_rules](const auto &p) {
-                return p.first.row == (H - 1) &&
-                    p.first.col == (W - 1) &&
-                    (part1_rules || p.first.consec_step >= 4);
-            });
-
     int min_dist = std::numeric_limits<int>::max();
+    int nodes_reached = 0;
+
     node min_node;
-    for (const auto &r : as_const(results)) {
-        if (r.second < min_dist) {
-            min_dist = r.second;
-            min_node = r.first;
+    node cur_node { .row = static_cast<pos_t>(H - 1), .col = static_cast<pos_t>(W - 1) };
+    for (pos_t step = 1; step <= max_steps; step++) {
+        for (Dir d : { Dir::north, Dir::south, Dir::west, Dir::east }) {
+            cur_node.consec_step = step;
+            cur_node.dir_in = d;
+
+            if (dist(cur_node) < min_dist &&
+                (part1_rules || step >= 4))
+            {
+                min_dist = dist(cur_node);
+                min_node = cur_node;
+            }
+
+            if (predecessors.contains(cur_node)) {
+                nodes_reached++;
+            }
         }
     }
 
-    cout << "Min. distance: " << min_dist << ", from " << results.size() << " possible nodes.\n";
+    cout << "Min. distance: " << min_dist << ", from " << nodes_reached << " possible nodes.\n";
 
     if constexpr (g_show_final) {
         std::unordered_map<uint32_t,bool> on_path;
