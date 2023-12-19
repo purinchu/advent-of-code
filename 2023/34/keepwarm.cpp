@@ -27,7 +27,7 @@
 // config
 
 static const bool g_show_input = false;
-static const bool g_show_final = true;
+static const bool g_show_final = false;
 
 // common types
 
@@ -327,7 +327,6 @@ void pathfinder::find_min_path(const node start)
         // lot of other nodes to visit.
 
         if (cur == end_node()) {
-            std::cout << "Found end node, distance = " << dist(end_node()) << "\n";
             return;
         }
 
@@ -372,15 +371,16 @@ void pathfinder::find_min_path(const node start)
         // Go through all possible directions and new nodes
         for (const auto new_dir : neighbor_dirs_for_node(cur)) {
             int new_dist = dist(cur);
-            auto nx = cx;
-            auto ny = cy;
+            pos_t nx = cx;
+            pos_t ny = cy;
             auto [dx, dy] = offset_for_dir(new_dir);
 
             for (int steps = 1; steps <= max_steps; steps++) {
                 nx += dx;
                 ny += dy;
 
-                if (nx < 0 || ny < 0 || nx >= W || ny >= H) {
+                // nx, ny are unsigned so can't be negative
+                if (nx >= W || ny >= H) {
                     break; // stay on the board
                 }
 
@@ -454,7 +454,7 @@ int main(int argc, char **argv)
 
     auto H = g.height(), W = g.width();
 
-    cout << "Min. distance: " << min_dist;
+    cout << "Min. distance: " << min_dist << "\n";
 
     if constexpr (g_show_final) {
         std::unordered_map<uint32_t,bool> on_path;
