@@ -199,13 +199,28 @@ std::ostream& operator <<(std::ostream &os, const node &n)
     return os;
 }
 
+auto make_grid(std::ifstream &input) -> grid<uint16_t>
+{
+    std::string line;
+    grid<uint16_t> g;
+
+    while (!input.eof() && std::getline(input, line)) {
+        g.add_line(line);
+    }
+
+    input.close();
+
+    if constexpr (g_show_input) {
+        g.dump_grid();
+        std::cout << "\n";
+    }
+
+    return g;
+}
+
 int main(int argc, char **argv)
 {
-    using std::cerr;
     using std::cout;
-    using std::endl;
-    using std::ifstream;
-    using std::string;
 
     bool part1_rules = false;
     int opt;
@@ -216,7 +231,7 @@ int main(int argc, char **argv)
             case '1': part1_rules = true;
                 break;
             default:
-                cerr << "error detected. input filename required.\n";
+                std::cerr << "error detected. input filename required.\n";
                 return 1;
         }
     }
@@ -226,33 +241,14 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    ifstream input;
-    input.exceptions(ifstream::badbit);
-
-    grid<std::uint16_t> g;
-
-    try {
-        input.open(argv[optind]);
-        string line;
-        while (!input.eof() && std::getline(input, line)) {
-            g.add_line(line);
-        }
-
-        input.close();
-    }
-    catch (ifstream::failure &e) {
-        cerr << "Exception on reading input: " << e.what() << endl;
-        return 1;
-    }
-    catch (...) {
-        cerr << "Something else went wrong..." << endl;
+    std::ifstream input;
+    input.open(argv[optind]);
+    if (!input.is_open()) {
+        std::cerr << "Unable to open " << argv[optind] << "\n";
         return 1;
     }
 
-    if constexpr (g_show_input) {
-        g.dump_grid();
-        cout << "\n";
-    }
+    auto g = make_grid(input);
 
     const auto W = g.width(), H = g.height();
 
