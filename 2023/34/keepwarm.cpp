@@ -7,7 +7,6 @@
 #include <concepts>
 #include <cstdint>
 #include <cstdlib>
-#include <deque>
 #include <fstream>
 #include <functional>
 #include <iomanip>
@@ -43,10 +42,14 @@ using pos_t = uint16_t;
 
 struct node
 {
+    // assumes a node being visited will have all neighbors reachable in a
+    // straight line considered, such that the *next* node will be forced to
+    // turn. A node will always consider E/W or N/S turns in this situation, so
+    // the only thing we need to know is whether we're looking horizontally or
+    // vertically for the next move.
     pos_t row = 0;
     pos_t col = 0;
-    int consec_step = 0;
-    Dir dir_in = Dir::north; // only valid for consec_step > 0
+    bool horiz = false;
 
     bool operator==(const node& o) const = default;
 };
@@ -58,10 +61,8 @@ struct std::hash<node>
     {
         std::size_t h1 = std::hash<pos_t>{}(n.row);
         std::size_t h2 = std::hash<pos_t>{}(n.col);
-        std::size_t h3 = std::hash<int>{}(n.consec_step);
-        std::size_t h4 = std::hash<Dir>{}(n.dir_in);
 
-        return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3);
+        return h1 ^ (h2 << 1) ^ (n.horiz << 2);
     }
 };
 
@@ -188,10 +189,12 @@ static const char *dir_name(Dir d)
 std::ostream& operator <<(std::ostream &os, const node &n)
 {
     std::ios::fmtflags os_flags(os.flags());
+    bool is_start = !n.col && !n.row;
+    const char *hv = n.horiz ? " H " : " V ";
     os << std::setw(2) << (n.col+1) << ","
         << std::setw(2) << (n.row+1) << " "
-        << (n.consec_step ? dir_name(n.dir_in) : "  -  ") << " "
-        << n.consec_step << " steps";
+        << (is_start ? "H,V" : hv) << " "
+        ;
     os.flags(os_flags);
     return os;
 }
@@ -258,18 +261,17 @@ int main(int argc, char **argv)
     unordered_map<node, node> predecessors;
 
     int max_steps = part1_rules ? 3 : 10;
-    distances.assign(W * H * max_steps * 4, std::numeric_limits<int>::max());
+    distances.assign(W * H * 2, std::numeric_limits<int>::max());
 
-    const auto idx_from_node = [W, max_steps] (const node n) {
-        // There are 4 * 3 * W * H cells
-        // [ N ] [ E ] [ S ] [ W ] [ N ] [ E ] [ S ] [ W ]
-        // [      steps = 1      ] [      steps = 2      ]
+    const auto idx_from_node = [W] (const node n) {
+        // There are 2 * W * H cells
+        // [ H ] [ V ] [ H ] [ V ] [ H ] [ V ] [ H ] [ V ]
+        // [ col 0   ] [ col 1   ] [  col 0  ] [  col 1  ]
+        // [ row 0               ] [  row 1              ]
         size_t idx;
-        int s = (n.row == 0 && n.col == 0) ? 0 : (n.consec_step - 1);
-        idx  = n.row * W * max_steps * 4;
-        idx += n.col     * max_steps * 4;
-        idx += s * 4;
-        idx += (int) n.dir_in;
+        idx  = n.row * W * 2;
+        idx += n.col     * 2;
+        idx += (int) n.horiz;
         return idx;
     };
 
@@ -282,8 +284,7 @@ int main(int argc, char **argv)
     };
 
     const auto node_distance_compare = [&](const node &l, const node &r) {
-        auto diff = dist(l) - dist(r);
-        return (diff == 0) ? (l.consec_step > r.consec_step) : (diff > 0);
+        return dist(l) > dist(r);
     };
 
     std::priority_queue<
@@ -301,10 +302,6 @@ int main(int argc, char **argv)
     uint_fast64_t cumu_visits = 0;
     uint_fast64_t num_neighbor_added = 0, num_distance_updates = 0;
 
-    // if we find the end we will skip processing all nodes with a higher
-    // distance than this
-    int max_distance = std::numeric_limits<int>::max();
-
     using namespace std::chrono;
 
     time_point t1 = steady_clock::now();
@@ -315,10 +312,9 @@ int main(int argc, char **argv)
         node cur = to_visit.top();
         to_visit.pop();
 
-        if (dist(cur) > max_distance) {
-            was_visited[cur] = true;
-            continue;
-        }
+        // each visit needs to reach out to all possible nodes reachable in a
+        // straight line from here and mark those neighbors to be visited as
+        // appropriate.
 
         num_visits++;
         cumu_visits += to_visit.size();
@@ -331,67 +327,62 @@ int main(int argc, char **argv)
 
         num_neighbor_passes++;
 
-        auto cx    = cur.col;
-        auto cy    = cur.row;
-        auto steps = cur.consec_step;
-        Dir ldir   = cur.dir_in;
-
-        static const std::array dirs      = { north, south, west, east };
-        static const std::array wrong_dir = { east, west, south, north };
+        auto cx = cur.col;
+        auto cy = cur.row;
 
         // new_dir is the direction we were going when we came into the new
         // cell. eg. to be 'south', we'd have come from the cell directly above
         // so the offset would be +1 (to get the right y from the cell above's y)
-        static const std::array x_off     = { -1, 1, 0, 0 };
-        static const std::array y_off     = { 0, 0, -1, 1 };
+        static const std::array x_off = { -1, 1, 0, 0 };
+        static const std::array y_off = { 0, 0, -1, 1 };
+        const std::array horiz_dir = { Dir::east , Dir::west  };
+        const std::array  vert_dir = { Dir::south, Dir::north };
+        vector<Dir> dirs;
+
+        if (cur.horiz || cur == start) {
+            std::copy(horiz_dir.begin(), horiz_dir.end(), back_inserter(dirs));
+        }
+
+        if (!cur.horiz || cur == start) {
+            std::copy(vert_dir.begin(), vert_dir.end(), back_inserter(dirs));
+        }
 
         // Go through all possible directions and new nodes
-        for (const auto &new_dir : dirs) {
-            if (new_dir == wrong_dir[(int) ldir] && steps) {
-                continue; // no backward turns
-            }
+        for (const auto new_dir : dirs) {
+            int new_dist = dist(cur);
+            int nx = cx;
+            int ny = cy;
 
-            int nx = cx + x_off[(int) new_dir];
-            int ny = cy + y_off[(int) new_dir];
+            for (int steps = 1; steps <= max_steps; steps++) {
+                nx += x_off[(int) new_dir];
+                ny += y_off[(int) new_dir];
 
-            if (nx < 0 || ny < 0 || nx >= W || ny >= H) {
-                continue; // stay on the board
-            }
-
-            int new_steps = (ldir == new_dir) ? steps + 1 : 1;
-
-            if (new_steps > (part1_rules ? 3 : 10)) {
-                continue; // no lengthy straight-line distances
-            }
-
-            if (!part1_rules && steps < 4 && steps && ldir != new_dir) {
-                continue; // can't turn until 4 consecutive steps
-            }
-
-            node candidate { static_cast<pos_t>(ny), static_cast<pos_t>(nx), new_steps, new_dir };
-            if (!was_visited.contains(candidate)) {
-                int new_dist = dist(cur) + (g.at(nx, ny) - '0');
-
-                if (nx == (W - 1) && ny == (H - 1) &&
-                    (part1_rules || candidate.consec_step >= 4))
-                {
-                    max_distance = std::min(max_distance, new_dist);
+                if (nx < 0 || ny < 0 || nx >= W || ny >= H) {
+                    break; // stay on the board
                 }
 
-                if (new_dist > max_distance) {
-                    was_visited[candidate] = true;
-                    continue;
+                new_dist += (g.at(nx, ny) - '0');
+
+                if (!part1_rules && steps < 4 && steps) {
+                    continue; // can't turn until 4 consecutive steps
                 }
 
-                if (dist(candidate) > new_dist) {
-                    set_dist(candidate, new_dist);
-                    predecessors[candidate] = cur;
-
-                    num_distance_updates++;
+                node candidate { static_cast<pos_t>(ny), static_cast<pos_t>(nx), !cur.horiz };
+                if (cur == start && new_dir == Dir::east) {
+                    candidate.horiz = false;
                 }
 
-                to_visit.push(candidate);
-                num_neighbor_added++;
+                if (!was_visited.contains(candidate)) {
+                    if (dist(candidate) > new_dist) {
+                        set_dist(candidate, new_dist);
+                        predecessors[candidate] = cur;
+
+                        num_distance_updates++;
+                    }
+
+                    to_visit.push(candidate);
+                    num_neighbor_added++;
+                }
             }
         }
 
@@ -405,23 +396,21 @@ int main(int argc, char **argv)
 
     node min_node;
     node cur_node { .row = static_cast<pos_t>(H - 1), .col = static_cast<pos_t>(W - 1) };
-    for (pos_t step = 1; step <= max_steps; step++) {
-        for (Dir d : { Dir::north, Dir::south, Dir::west, Dir::east }) {
-            cur_node.consec_step = step;
-            cur_node.dir_in = d;
+    bool horiz = true;
+    do {
+        cur_node.horiz = horiz;
 
-            if (dist(cur_node) < min_dist &&
-                (part1_rules || step >= 4))
-            {
-                min_dist = dist(cur_node);
-                min_node = cur_node;
-            }
-
-            if (predecessors.contains(cur_node)) {
-                nodes_reached++;
-            }
+        if (dist(cur_node) < min_dist) {
+            min_dist = dist(cur_node);
+            min_node = cur_node;
         }
-    }
+
+        if (predecessors.contains(cur_node)) {
+            nodes_reached++;
+        }
+
+        horiz = !horiz;
+    } while (!horiz);
 
     cout << "Min. distance: " << min_dist << ", from " << nodes_reached << " possible nodes.\n";
 
@@ -430,8 +419,26 @@ int main(int argc, char **argv)
 
         // pre-process where path landed then print it to console
         while(predecessors.contains(min_node)) {
-            on_path[(min_node.col << 16) | min_node.row] = true;
-            min_node = predecessors[min_node];
+            auto prev_node = predecessors[min_node];
+            bool horiz = prev_node.horiz;
+            if (prev_node == start) {
+                horiz = min_node.row == 0;
+            }
+
+            if (horiz) {
+                const int dx = min_node.col > prev_node.col ? -1 : 1;
+                for (auto c = min_node.col; c != prev_node.col; c += dx) {
+                    on_path[(c << 16) | min_node.row] = true;
+                }
+            } else {
+                const int dy = min_node.row > prev_node.row ? -1 : 1;
+                for (auto r = min_node.row; r != prev_node.row; r += dy) {
+                    on_path[(min_node.col << 16) | r] = true;
+                }
+            }
+
+            on_path[(prev_node.col << 16) | prev_node.row] = true;
+            min_node = prev_node;
         }
 
         cout << "\n";
@@ -459,6 +466,7 @@ int main(int argc, char **argv)
         cout << "\n";
     }
 
+    (void) dir_name; // silence clang warning about non-use
     return 0;
 }
 
