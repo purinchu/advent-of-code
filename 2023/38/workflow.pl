@@ -12,9 +12,11 @@ use experimental 'for_list';
 
 use List::Util qw(min max sum reduce);
 use Mojo::JSON qw(j);
+use Storable qw(dclone);
 
 # Config
 use constant G_DEBUG_INPUT => 0;
+use constant G_DEBUG_DOT => 0;
 
 my $input_name = 'input';
 $" = ', '; # For arrays interpolated into strings
@@ -84,6 +86,8 @@ foreach ($workflow->@*) {
         $preds{$false_node->{name}} //= [ ];
         push $preds{$true_node->{name}}->@* , $last_node->{name}.',t';
         push $preds{$false_node->{name}}->@*, $last_node->{name}.',f';
+        push $preds{$false_node->{name}}->@*, $last_node->{name}.',f'
+            if defined $cond; # can only fail condition if it's present
 
         $last_node = $false_node;
     }
@@ -91,40 +95,77 @@ foreach ($workflow->@*) {
 
 #say j \%nodes;
 
+if (G_DEBUG_DOT) {
+    dump_dot();
+    exit 0;
+}
+
 # Now that we have graph and predecessors list built, work backwards from
 # Accept state to see what numbers could have led to each state.
 
-my @accepts = $preds{A}->@*;
+my @outs;
+my %ranges = map { ($_ => [1, 4000]) } qw(x m a s);
 
-use DDP max_depth => 1;
+trace_forwards(\%ranges, 'in/0', 'in/0');
 
-for my $acc (@accepts) {
-    my %ranges = ( map { ($_ => [0, 4000]) } qw(x m a s));
+use DDP multiline => 0;
+#p $_ foreach @outs;
 
-    my %res = constrain_range_to_node($acc, %ranges);
-#   say "for $acc: ";
-#   p %res;
+my $sum = 0;
+
+for my $out (@outs) {
+    my $result = 1;
+    for my $range (values $out->%*) {
+        die "invalid range " if $range->[1] < $range->[0];
+        my $mult = ($range->[1] - $range->[0] + 1);
+        $result *= $mult;
+    }
+    $sum += $result;
 }
 
-dump_dot();
+say $sum;
 
 # Aux subs
 
-# Takes the x/m/a/s range in %ranges and constrains them
-# based on all nodes reachable through $pred. Returns the constrained
-# range
-sub constrain_range_to_node($pred, %ranges)
+sub trace_forwards($ranges, $node_name, $full)
 {
-    my $n = node(substr $pred, 0, -2); # remove last 2 chars to find name
-    my $edge = substr $pred, -1;       # last char
+    my $n = node($node_name);
 
-    if ($edge eq 't') {
-        # only got here if cond was true, so whatever cond wanted must
-        # be in range
-    } else {
+    if ($n->{name} eq 'A') {
+        push @outs, $ranges;
+        return;
+    }
+    return if $n->{name} eq 'R';
+
+    if (!defined $n->{cond}) {
+        trace_forwards($ranges, $n->{t}->{name}, "$full -> $n->{t}->{name}");
+        return;
     }
 
-    return %ranges;
+    # we have a condition. apply it and subdivide to see what happens
+    my ($var, $op, $value) = split('', $n->{cond}, 3);
+
+    # first pretend condition was met
+    my $new_range = dclone $ranges;
+    if ($op eq '>') {
+        $new_range->{$var}->[0] = max($new_range->{$var}->[0], $value + 1);
+    } else {
+        $new_range->{$var}->[1] = min($new_range->{$var}->[1], $value - 1);
+    }
+
+    trace_forwards($new_range, $n->{t}->{name}, "$full -> $n->{t}->{name}");
+
+    # now pretend the condition failed
+    $new_range = dclone $ranges;
+    if ($op eq '>') {
+        # <=
+        $new_range->{$var}->[1] = min($new_range->{$var}->[1], $value);
+    } else {
+        # >=
+        $new_range->{$var}->[0] = max($new_range->{$var}->[0], $value);
+    }
+
+    trace_forwards($new_range, $n->{f}->{name}, "$full -> $n->{f}->{name}");
 }
 
 sub node($name)
@@ -190,4 +231,3 @@ sub dump_dot
 
     say "}";
 }
-
