@@ -171,9 +171,13 @@ sub dump_dot
                 "$k" -> "$t_dest" [ label = "$cond" ]
                 "$k" -> "$f_dest" [ label = "!$cond" ]
             END
-        } elsif ($k eq 'A' or $k eq 'R') {
+        } elsif ($k eq 'A') {
             say <<~END;
-                "$k"
+                "$k" [shape=doublecircle style=filled fillcolor=green]
+            END
+        } elsif ($k eq 'R') {
+            say <<~END;
+                "$k" [shape=doubleoctagon style=filled fillcolor=yellow]
             END
         } else {
             # final rule in workflow
