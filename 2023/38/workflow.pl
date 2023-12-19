@@ -85,15 +85,12 @@ foreach ($workflow->@*) {
         $preds{$true_node->{name}}  //= [ ];
         $preds{$false_node->{name}} //= [ ];
         push $preds{$true_node->{name}}->@* , $last_node->{name}.',t';
-        push $preds{$false_node->{name}}->@*, $last_node->{name}.',f';
         push $preds{$false_node->{name}}->@*, $last_node->{name}.',f'
             if defined $cond; # can only fail condition if it's present
 
         $last_node = $false_node;
     }
 }
-
-#say j \%nodes;
 
 if (G_DEBUG_DOT) {
     dump_dot();
@@ -103,24 +100,14 @@ if (G_DEBUG_DOT) {
 # Now that we have graph and predecessors list built, work backwards from
 # Accept state to see what numbers could have led to each state.
 
-my @outs;
 my %ranges = map { ($_ => [1, 4000]) } qw(x m a s);
-
-trace_forwards(\%ranges, 'in/0', 'in/0');
-
-use DDP multiline => 0;
-#p $_ foreach @outs;
 
 my $sum = 0;
 
-for my $out (@outs) {
-    my $result = 1;
-    for my $range (values $out->%*) {
-        die "invalid range " if $range->[1] < $range->[0];
-        my $mult = ($range->[1] - $range->[0] + 1);
-        $result *= $mult;
-    }
-    $sum += $result;
+for my $out (trace_forwards(\%ranges, 'in/0', 'in/0')) {
+    $sum += reduce { $a * $b }
+            map { ($_->[1] - $_->[0] + 1) }
+            values $out->%*;
 }
 
 say $sum;
@@ -131,16 +118,11 @@ sub trace_forwards($ranges, $node_name, $full)
 {
     my $n = node($node_name);
 
-    if ($n->{name} eq 'A') {
-        push @outs, $ranges;
-        return;
-    }
+    return $ranges if $n->{name} eq 'A';
     return if $n->{name} eq 'R';
 
-    if (!defined $n->{cond}) {
-        trace_forwards($ranges, $n->{t}->{name}, "$full -> $n->{t}->{name}");
-        return;
-    }
+    return trace_forwards($ranges, $n->{t}->{name}, "$full -> $n->{t}->{name}")
+        unless defined $n->{cond};
 
     # we have a condition. apply it and subdivide to see what happens
     my ($var, $op, $value) = split('', $n->{cond}, 3);
@@ -153,7 +135,7 @@ sub trace_forwards($ranges, $node_name, $full)
         $new_range->{$var}->[1] = min($new_range->{$var}->[1], $value - 1);
     }
 
-    trace_forwards($new_range, $n->{t}->{name}, "$full -> $n->{t}->{name}");
+    my @list = trace_forwards($new_range, $n->{t}->{name}, "$full -> $n->{t}->{name}");
 
     # now pretend the condition failed
     $new_range = dclone $ranges;
@@ -165,7 +147,9 @@ sub trace_forwards($ranges, $node_name, $full)
         $new_range->{$var}->[0] = max($new_range->{$var}->[0], $value);
     }
 
-    trace_forwards($new_range, $n->{f}->{name}, "$full -> $n->{f}->{name}");
+    push @list, trace_forwards($new_range, $n->{f}->{name}, "$full -> $n->{f}->{name}");
+
+    return @list;
 }
 
 sub node($name)
