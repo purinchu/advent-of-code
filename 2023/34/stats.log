@@ -1,0 +1,39 @@
+# keepwarm -1 ../33/input, v0
+stats: visits: 358160, avg visit queue: 1996, neighbor_passes: 235189, neighbor_added: 358159, distance_updates: 235196
+grid size: 19881, avg neighbors per grid cell: 18
+
+# keepwarm -1 ../33/input, v0 but mark max distance found once adding to was_visited.
+stats: visits: 357539, avg visit queue: 1999, neighbor_passes: 234747, neighbor_added: 357762, distance_updates: 234914
+grid size: 19881, avg neighbors per grid cell: 17
+
+# keepwarm -1 ../33/input, the above but also skip adding visits for >max candidates.
+stats: visits: 357501, avg visit queue: 1999, neighbor_passes: 234724, neighbor_added: 357549, distance_updates: 234790
+grid size: 19881, avg neighbors per grid cell: 17
+
+# keepwarm -1 ../33/input, the above but with a timer
+stats: visits: 357501, avg visit queue: 1999, neighbor_passes: 234724, neighbor_added: 357549, distance_updates: 234790
+grid size: 19881, avg neighbors per grid cell: 17, time: 8.39519
+
+# keepwarm -1 ../33/input, the above but with prio queue using vector, not deque
+stats: visits: 357501, avg visit queue: 1999, neighbor_passes: 234724, neighbor_added: 357549, distance_updates: 234790
+grid size: 19881, avg neighbors per grid cell: 17, time: 8.0542
+
+# keepwarm -1 ../33/input, the above but with to_visit.add *after* distances added
+stats: visits: 357489, avg visit queue: 1999, neighbor_passes: 234723, neighbor_added: 357543, distance_updates: 234786
+grid size: 19881, avg neighbors per grid cell: 17, time: 7.80423
+
+# keepwarm -1 ../33/input, the above but with compare func using steps as a secondary sort
+stats: visits: 352554, avg visit queue: 1975, neighbor_passes: 234726, neighbor_added: 352592, distance_updates: 234775
+grid size: 19881, avg neighbors per grid cell: 17, time: 7.89513
+
+# keepwarm -1 ../33/input, the above, except the compare func uses cell distance rather than steps for secondary
+stats: visits: 356710, avg visit queue: 1976, neighbor_passes: 234727, neighbor_added: 356767, distance_updates: 234786
+grid size: 19881, avg neighbors per grid cell: 17, time: 7.56786
+
+# keepwarm -1 ../33/input, the above, except the compare func uses both cell distance and steps for secondary
+stats: visits: 358916, avg visit queue: 1988, neighbor_passes: 234724, neighbor_added: 358962, distance_updates: 234778
+grid size: 19881, avg neighbors per grid cell: 18, time: 7.87267
+
+# keepwarm -1 ../33/input, all the above, but with the much smaller node type and changed visit behavior
+stats: visits: 131173, avg visit queue: 1208, neighbor_passes: 39762, neighbor_added: 131172, distance_updates: 69000
+grid size: 19881, avg neighbors per grid cell: 6, time: 0.17317
