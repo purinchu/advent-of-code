@@ -47,9 +47,10 @@ struct node
     // turn. A node will always consider E/W or N/S turns in this situation, so
     // the only thing we need to know is whether we're looking horizontally or
     // vertically for the next move.
-    pos_t row = 0;
+    pos_t row = 0;      // start node is at 0,0 with horiz=false
     pos_t col = 0;
     bool horiz = false;
+    enum { normal, end } type = normal;
 
     bool operator==(const node& o) const = default;
 };
@@ -191,6 +192,12 @@ std::ostream& operator <<(std::ostream &os, const node &n)
     std::ios::fmtflags os_flags(os.flags());
     bool is_start = !n.col && !n.row;
     const char *hv = n.horiz ? " H " : " V ";
+
+    if (n.type == node::end) {
+        os << "[end node]";
+        return os;
+    }
+
     os << std::setw(2) << (n.col+1) << ","
         << std::setw(2) << (n.row+1) << " "
         << (is_start ? "H,V" : hv) << " "
@@ -227,7 +234,8 @@ struct pathfinder
         , max_steps(use_part1_rules ? 3 : 10)
         , part1_rules(use_part1_rules)
     {
-        distances.assign(W * H * 2, std::numeric_limits<int>::max());
+        // the +1 is for the end node
+        distances.assign(W * H * 2 + 1, std::numeric_limits<int>::max());
     }
 
     void find_min_path(const node start);
@@ -262,8 +270,11 @@ struct pathfinder
 
     bool is_start(const node &n) const { return !n.col && !n.row; };
 
+    node end_node() const { node n{.type = node::end}; return n; };
+
     // distances
     std::size_t idx_from_node(const node n) const {
+        if (n.type == node::end) { return distances.size() - 1; }
         return (n.row * W * 2) + (n.col * 2) + (int) n.horiz;
     };
 
@@ -311,6 +322,15 @@ void pathfinder::find_min_path(const node start)
         node cur = to_visit.top();
         to_visit.pop();
 
+        // if the end node pops up here, this is the shortest possible path
+        // to it and we're done. This can be a shortcut if there's still a
+        // lot of other nodes to visit.
+
+        if (cur == end_node()) {
+            std::cout << "Found end node, distance = " << dist(end_node()) << "\n";
+            return;
+        }
+
         // each visit needs to reach out to all possible nodes reachable in a
         // straight line from here and mark those neighbors to be visited as
         // appropriate.
@@ -327,6 +347,27 @@ void pathfinder::find_min_path(const node start)
         num_neighbor_passes++;
 
         auto cx = cur.col, cy = cur.row;
+
+        // Have a single (virtual) goal node that has zero cost to transition
+        // to from the any node in the lower right.
+        // This relies on the other checks to ensure *this* node state was valid!
+        if (cx == W - 1 && cy == H - 1) {
+            node e = end_node();
+            if (!was_visited.contains(e)) {
+                if (dist(e) > dist(cur)) {
+                    set_dist(e, dist(cur));
+                    predecessors[e] = cur;
+
+                    num_distance_updates++;
+                }
+
+                to_visit.push(e);
+                num_neighbor_added++;
+            }
+
+            was_visited[cur] = true;
+            continue;
+        }
 
         // Go through all possible directions and new nodes
         for (const auto new_dir : neighbor_dirs_for_node(cur)) {
@@ -409,40 +450,27 @@ int main(int argc, char **argv)
 
     time_point t2 = steady_clock::now();
 
-    int min_dist = std::numeric_limits<int>::max();
-    int nodes_reached = 0;
+    int min_dist = p.dist(p.end_node());
 
-    int H = g.height(), W = g.width();
+    auto H = g.height(), W = g.width();
 
-    node min_node;
-    node cur_node { .row = static_cast<pos_t>(H - 1), .col = static_cast<pos_t>(W - 1) };
-    bool horiz = true;
-    do {
-        cur_node.horiz = horiz;
-
-        if (p.dist(cur_node) < min_dist) {
-            min_dist = p.dist(cur_node);
-            min_node = cur_node;
-        }
-
-        if (p.predecessors.contains(cur_node)) {
-            nodes_reached++;
-        }
-
-        horiz = !horiz;
-    } while (!horiz);
-
-    cout << "Min. distance: " << min_dist << ", from " << nodes_reached << " possible nodes.\n";
+    cout << "Min. distance: " << min_dist;
 
     if constexpr (g_show_final) {
         std::unordered_map<uint32_t,bool> on_path;
 
         // pre-process where path landed then print it to console
+        node min_node = p.end_node();
         while(p.predecessors.contains(min_node)) {
             auto prev_node = p.predecessors[min_node];
             bool horiz = prev_node.horiz;
             if (prev_node == node{}) {
                 horiz = min_node.row == 0;
+            }
+            if (min_node == p.end_node()) {
+                // reset coord to avoid breaking trace
+                min_node.row = H - 1;
+                min_node.col = W - 1;
             }
 
             if (horiz) {
