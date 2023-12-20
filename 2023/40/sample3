@@ -1,0 +1,14 @@
+%vv -> mq, db
+%sp -> jh
+%jh -> db, kg
+%kg -> xz
+%fx -> qf
+%gz -> vv
+%bh -> kr, db
+&db -> kg, sp, kp, fx, jh, gz
+%kr -> db
+%xz -> zs, db
+%qf -> db, gz
+%mq -> bh, db
+%zs -> db, fx
+broadcaster -> sp

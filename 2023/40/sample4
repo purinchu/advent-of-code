@@ -1,0 +1,6 @@
+%sp -> db, jh
+%jh -> kg
+%kg -> xz
+&db -> sp, jh
+%xz -> db
+broadcaster -> sp

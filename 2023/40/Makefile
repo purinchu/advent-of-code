@@ -1,5 +1,5 @@
 .PHONY: all clean
-TARGETS := graph.png sample2.png
+TARGETS := graph.png sample2.png sample3.png
 
 all: $(TARGETS)
 
