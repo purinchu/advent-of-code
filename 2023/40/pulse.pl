@@ -16,7 +16,6 @@ use Getopt::Long qw(:config auto_version auto_help);
 
 # Config
 use constant G_DEBUG_INPUT => 0;
-use constant G_DEBUG_LINES => 1;
 use constant G_DEBUG_EV => 0;
 
 my $input_name = 'input';
@@ -31,12 +30,14 @@ my $button_press = 0; # number of times button was pushed
 my $max_cycles = 1000; # stop after this many cycles
 my $watched;           # node name to watch
 my $spam_msgs;         # output every watched message in/out
+my $refl_input;        # echos the input before running
 my $propagate;         # try to determine cycle period by propagating push
 
 GetOptions(
     "cycles|c=i"   => \$max_cycles,
     "watch|w=s"    => \$watched,
     "spam|s"       => \$spam_msgs,
+    "reflect|r"    => \$refl_input,
     "propagate|p"  => \$propagate,
 )
     or die "Error reading command line options";
@@ -45,7 +46,7 @@ do {
     open my $input_fh, '<', (shift @ARGV // $input_name);
     chomp(my @lines = <$input_fh>);
 
-    if (G_DEBUG_LINES) {
+    if ($refl_input) {
         say for @lines;
     }
     %modules = load_input(@lines);
@@ -76,19 +77,24 @@ if ($propagate) {
     }
 
     say "Done!";
-} else {
-    # push button repeatedly
-    for (1..$max_cycles) {
-        push @events, make_event('broadcaster', 'button', 0);
-        while (@events) {
-            $tally[handle_event(\@events)]++;
-        }
+}
 
-        $button_press++;
+# push button repeatedly
+BUTTON: for (1..$max_cycles) {
+    push @events, make_event('broadcaster', 'button', 0);
+    while (@events) {
+        $tally[handle_event(\@events)]++;
+
+        if ($propagate && $watched && exists $modules{$watched}->{first_0}) {
+            say "Node $watched saw its first 0";
+            last BUTTON;
+        }
     }
 
-    say $tally[0] * $tally[1];
+    $button_press++;
 }
+
+say $tally[0] * $tally[1];
 
 if ($watched) {
     my $json = JSON->new->pretty;
@@ -142,21 +148,20 @@ sub load_input(@lines)
     return %modules;
 }
 
-sub lcm($a, $b)
+sub lcm($n1, $n2)
 {
     # factorize both and use the highest number of each multiple seen
     my %highest_factors;
 
-    say "Getting lcm of $a, $b";
-
-    for my $val ($a, $b) {
+    for ($n1, $n2) {
+        my $val = $_; # avoid editing n1 / n2 for sanity
         my %cur_factors;
         my $highest = sqrt($val) + 1;
         my $divisor = 2;
 
         while($val > $divisor && $divisor < $highest) {
             if (($val % $divisor) == 0) {
-                # found a multiple
+                # found n1 multiple
                 $cur_factors{$divisor}++;
                 $val /= $divisor;
             } else {
@@ -176,8 +181,6 @@ sub lcm($a, $b)
         $result *= ($div * $count);
     }
 
-    say "lcm of $a, $b is $result";
-
     return $result;
 }
 
@@ -187,8 +190,6 @@ sub propagate_first_low_pulse($first_press, $node)
 {
     my $m = $modules{$node};
 
-    say "Propagating $node";
-
     if (!exists $m->{in_cycle_0}) {
         # our propagation varies by type
         if ($m->{type} eq 'b') {
@@ -196,7 +197,7 @@ sub propagate_first_low_pulse($first_press, $node)
             $first_press = 0;
         } elsif ($m->{type} eq '%') {
             # flip flop, every other input 0 is a 0 out
-            $first_press = $first_press + 1;
+            $first_press = 2 * $first_press + 1;
         } elsif ($m->{type} eq '&') {
             # conjunction, every node being a 1 gives us a 0 out
             # assume the math works out for now...
@@ -205,9 +206,7 @@ sub propagate_first_low_pulse($first_press, $node)
                 keys $m->{in}->%*;
             my $lcm = reduce { lcm ($a, $b) } $first_press, @in_periods;
             $first_press = $lcm;
-        } else {
-            say "Unhandled node $node, setting first_press to $first_press";
-        }
+        } # not handled: output nodes
 
         $m->{in_cycle_0} = $first_press;
     } else {
@@ -216,8 +215,6 @@ sub propagate_first_low_pulse($first_press, $node)
         $m->{in_cycle_0} = $first_press;
         return ($first_press) unless $old_cycle != $first_press;
     }
-
-    say "Done with $node, updating $m->{out}->@*";
 
     # our first_press changed, propagate changes to our receivers
     return ($first_press, $m->{out}->@*);
@@ -315,7 +312,7 @@ Runs a simulator of flip-flops and conjunction nodes connected in a graph,
 potentially including cycles. Uses a simulated event loop to keep things
 straight.
 
-Usage: ./pulse.pl [-c NUM] [-s] [-w NODE_NAME] [FILE_NAME]
+Usage: ./pulse.pl [-psr] [-c NUM] [-w NODE_NAME] [FILE_NAME]
 
   -c | --cycles     -> number of cycles to run and then exit. A value based on
                        the number of high/low pulses seen is output.
@@ -324,6 +321,7 @@ Usage: ./pulse.pl [-c NUM] [-s] [-w NODE_NAME] [FILE_NAME]
                        output.
   -s | --spam       -> When watching a node, also output msgs sent/received.
   -p | --propagate  -> Try to determine common cycle in network, use with -w
+  -r | --reflect    -> Echos input before starting
 
 FILE_NAME specifies the network configuration to simulate, and is 'input'
 if not specified.
