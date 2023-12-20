@@ -6,8 +6,7 @@ def decode(line)
   match = line.match /^([a-z ]+) ([0-9]+),([0-9]+) through ([0-9]+),([0-9]+)/
 
   m = Array.new(match.captures[0..4])
-  m.map!(&:to_i)
-  m[0] = match.captures[0] # restore overwritten non-integer action
+  m[1..4] = m[1..4].map(&:to_i)
   m
 end
 
