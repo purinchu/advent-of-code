@@ -159,7 +159,7 @@ sub lcm($n1, $n2)
 
         while($val > $divisor && $divisor < $highest) {
             if (($val % $divisor) == 0) {
-                # found n1 multiple
+                # found a multiple
                 $cur_factors{$divisor}++;
                 $val /= $divisor;
             } else {
