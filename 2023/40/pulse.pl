@@ -29,6 +29,7 @@ my $button_press = 0; # number of times button was pushed
 
 my $max_cycles = 1000; # stop after this many cycles
 my $watched;           # node name to watch
+my $watch_for;         # value to watch for
 my $spam_msgs;         # output every watched message in/out
 my $refl_input;        # echos the input before running
 my $propagate;         # try to determine cycle period by propagating push
@@ -36,6 +37,7 @@ my $propagate;         # try to determine cycle period by propagating push
 GetOptions(
     "cycles|c=i"   => \$max_cycles,
     "watch|w=s"    => \$watched,
+    "for|f=i"      => \$watch_for,
     "spam|s"       => \$spam_msgs,
     "reflect|r"    => \$refl_input,
     "propagate|p"  => \$propagate,
@@ -56,6 +58,8 @@ die "Unknown watch node $watched"
     if $watched and !$modules{$watched};
 die "Need to know what node to spam for"
     if $spam_msgs and !$watched;
+die "--for must be 0 or 1"
+    if defined $watch_for and abs($watch_for) > 1;
 
 if (G_DEBUG_INPUT) {
     say encode_json \%modules;
@@ -93,8 +97,6 @@ BUTTON: for (1..$max_cycles) {
 
     $button_press++;
 }
-
-say $tally[0] * $tally[1];
 
 if ($watched) {
     my $json = JSON->new->pretty;
@@ -249,6 +251,13 @@ sub handle_event($events_ref)
 
         $r->{"first_$p"} //= $button_press;
 
+        if (defined $watch_for && $p == $watch_for) {
+            $r->{"cycles_seen_$p"} //= [ ];
+            push $r->{"cycles_seen_$p"}->@*, $event_num;
+            $r->{"presses_seen_$p"} //= [ ];
+            push $r->{"presses_seen_$p"}->@*, $button_press;
+        }
+
         # see if a periodic cycle is there
         my $last_ev = $r->{"last_$p"} // 0;
         if ($last_ev) {
@@ -312,13 +321,14 @@ Runs a simulator of flip-flops and conjunction nodes connected in a graph,
 potentially including cycles. Uses a simulated event loop to keep things
 straight.
 
-Usage: ./pulse.pl [-psr] [-c NUM] [-w NODE_NAME] [FILE_NAME]
+Usage: ./pulse.pl [-psr] [-c NUM] [-w NODE_NAME] [-f 0|1] [FILE_NAME]
 
   -c | --cycles     -> number of cycles to run and then exit. A value based on
                        the number of high/low pulses seen is output.
   -w | --watch      -> switch to a mode where a node is watched and
                        the number of cycles between receiving low pulses is
                        output.
+  -f | --for        -> Value to watch for (0 or 1).
   -s | --spam       -> When watching a node, also output msgs sent/received.
   -p | --propagate  -> Try to determine common cycle in network, use with -w
   -r | --reflect    -> Echos input before starting
