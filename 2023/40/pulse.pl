@@ -10,7 +10,7 @@ use autodie;
 use experimental 'for_list';
 
 use List::Util qw(any min max sum reduce);
-use Mojo::JSON qw(j);
+use JSON;
 use Storable qw(dclone);
 use Getopt::Long qw(:config auto_version auto_help);
 
@@ -28,10 +28,12 @@ my @events;  # event loop
 
 my $max_cycles = 1000; # stop after this many cycles
 my $watched;           # node name to watch
+my $spam_msgs;         # output every watched message in/out
 
 GetOptions(
-    "cycles|c=i" => \$max_cycles,
-    "watch|w=s"  => \$watched,
+    "cycles|c=i"   => \$max_cycles,
+    "watch|w=s"    => \$watched,
+    "spam|s"       => \$spam_msgs,
 )
     or die "Error reading command line options";
 
@@ -44,9 +46,11 @@ do {
 
 die "Unknown watch node $watched"
     if $watched and !$modules{$watched};
+die "Need to know what node to spam for"
+    if $spam_msgs and !$watched;
 
 if (G_DEBUG_INPUT) {
-    say j \%modules;
+    say encode_json \%modules;
 }
 
 my $count = 0;
@@ -60,7 +64,12 @@ for (1..$max_cycles) {
     }
 }
 
-say $tally[0] * $tally[1];
+if (!$watched) {
+    say $tally[0] * $tally[1];
+} else {
+    my $json = JSON->new->pretty;
+    say $json->encode($modules{$watched});
+}
 
 # Aux subs
 
@@ -118,22 +127,43 @@ sub handle_event($events_ref)
 {
     state $event_num = 0;
     my $e = shift $events_ref->@*;
-    my $receiver = $modules{$e->{r}} or die "no receiver $e->{r}";
+    # receiver of event
+    my $r = $modules{$e->{r}} or die "no r $e->{r}";
 
     say "Event: $e->{src} --($e->{t})--> $e->{r}" if G_DEBUG_EV;
 
-    if ($receiver->{type} eq '%') {
+    if ($r->{type} eq '%') {
         handle_flop($e, \@events);
-    } elsif ($receiver->{type} eq '&') {
+    } elsif ($r->{type} eq '&') {
         handle_and($e, \@events);
-    } elsif ($receiver->{type} eq 'b') {
+    } elsif ($r->{type} eq 'b') {
         handle_broadcast($e, \@events);
     }
 
     if ($watched && $e->{r} eq $watched) {
-        say "$event_num: $watched: received $e->{t} from $e->{src}";
+        my $p = $e->{t};
+        say "$event_num: $watched: received $e->{t} from $e->{src}"
+            if $spam_msgs;
+
+        # see if a periodic cycle is there
+        my $last_ev = $r->{"last_$p"} // 0;
+        if ($last_ev) {
+            my $this_cycle = $event_num - $last_ev;
+            my $last_cycle = $r->{"cycle_$p"} // 0;
+
+            $r->{"cycle_$p"} = $this_cycle;
+
+            if ($last_cycle && $last_cycle != $this_cycle) {
+                say "$event_num: $watched: cycle $p went from $last_cycle to $this_cycle!";
+            } elsif (!$last_cycle) {
+                say "$event_num: $watched: detected cycle of length $this_cycle for $p.";
+            }
+        }
+
+        $r->{"last_$p"} = $event_num;
     } elsif ($watched && $e->{src} eq $watched) {
-        say "$event_num: $watched: sent $e->{t} to $e->{r}";
+        say "$event_num: $watched: sent $e->{t} to $e->{r}"
+            if $spam_msgs;
     }
 
     $event_num++;
@@ -180,12 +210,14 @@ Runs a simulator of flip-flops and conjunction nodes connected in a graph,
 potentially including cycles. Uses a simulated event loop to keep things
 straight.
 
-Usage: ./pulse.pl [-c NUM] [-w NODE_NAME] [FILE_NAME]
+Usage: ./pulse.pl [-c NUM] [-s] [-w NODE_NAME] [FILE_NAME]
 
-  -c | --cycles -> number of cycles to run and then exit. A value based on
-                   the number of high/low pulses seen is output.
-  -w | --watch  -> switch to a mode where a node is watched and
-                   the number of cycles between low pulses is printed out
+  -c | --cycles     -> number of cycles to run and then exit. A value based on
+                       the number of high/low pulses seen is output.
+  -w | --watch      -> switch to a mode where a node is watched and
+                       the number of cycles between receiving low pulses is
+                       output.
+  -s | --spam       -> When watching a node, also output msgs sent/received.
 
 FILE_NAME specifies the network configuration to simulate, and is 'input'
 if not specified.
