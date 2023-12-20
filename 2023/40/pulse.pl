@@ -9,7 +9,7 @@ use 5.038;
 use autodie;
 use experimental 'for_list';
 
-use List::Util qw(any min max sum reduce);
+use List::Util qw(first all any min max reduce);
 use JSON;
 use Storable qw(dclone);
 use Getopt::Long qw(:config auto_version auto_help);
@@ -27,9 +27,9 @@ my $button_press = 0; # number of times button was pushed
 
 # Code (Aux subs below)
 
-my $max_cycles = 1000; # stop after this many cycles
+my $max_cycles = 9800; # stop after this many cycles
 my $watched;           # node name to watch
-my $watch_for;         # value to watch for
+my $watch_for = 0;     # value to watch for
 my $spam_msgs;         # output every watched message in/out
 my $refl_input;        # echos the input before running
 
@@ -66,6 +66,15 @@ if (G_DEBUG_INPUT) {
 my $count = 0;
 my @tally = (0, 0);
 
+# to solve the puzzle we need rx to receive a 0. It is fed by a conjunction
+# node which is itself fed by four conjunction nodes, but we can get away
+# with figuring out the cycle for those four inputs. To find the cycle, just
+# run the puzzle...
+my $direct_senders = first { grep { $_ eq 'rx' } $modules{$_}->{out}->@* } keys %modules;
+my @senders = keys $modules{$direct_senders}->{in}->%*;
+
+say "Waiting for @senders to cycle";
+
 # push button repeatedly
 for (1..$max_cycles) {
     push @events, make_event('broadcaster', 'button', 0);
@@ -74,12 +83,21 @@ for (1..$max_cycles) {
     }
 
     $button_press++;
+    if (all { ($modules{$_}->{"presses_seen_0"} // [])->@* >= 2} @senders) {
+        say "Stopping early, all cycles found.";
+        last;
+    }
 }
 
+my $json = JSON->new->pretty;
 if ($watched) {
-    my $json = JSON->new->pretty;
     say $json->encode($modules{$watched});
 }
+
+my @cycles = map { $_->{presses_seen_0}->[1] - $_->{presses_seen_0}->[0] } @modules{@senders};
+my $lcm = reduce { lcm ($a, $b) } @cycles;
+
+say $lcm;
 
 # Aux subs
 
@@ -186,7 +204,11 @@ sub handle_event($events_ref)
         handle_broadcast($e, \@events);
     }
 
-    if ($watched && $e->{r} eq $watched) {
+    my %watching;
+    @watching{@senders} = (1) x @senders;
+    $watching{$watched} = 1 if $watched;
+
+    if ($watching{$e->{r}}) {
         my $p = $e->{t};
         say "$event_num: $watched: received $e->{t} from $e->{src}"
             if $spam_msgs;
