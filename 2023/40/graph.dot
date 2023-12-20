@@ -1,0 +1,124 @@
+digraph g {
+    rankdir=LR
+    graph [ fontname="Noto Sans" ]
+    node  [ fontname="Noto Sans" ]
+    edge  [ fontname="Noto Sans" ]
+
+    nd [ shape=hexagon style=filled fillcolor=lightblue ]
+    ql [ shape=hexagon style=filled fillcolor=lightblue ]
+    gz [ shape=hexagon style=filled fillcolor=lightblue ]
+    lg [ shape=hexagon style=filled fillcolor=lightblue ]
+    tr [ shape=hexagon style=filled fillcolor=lightblue ]
+    vn [ shape=hexagon style=filled fillcolor=lightblue ]
+    kg [ shape=hexagon style=filled fillcolor=lightblue ]
+    sj [ shape=hexagon style=filled fillcolor=lightblue ]
+    bq [ shape=invtrapezium style=filled fillcolor=lightgreen ]
+    hf [ shape=hexagon style=filled fillcolor=lightblue ]
+    vv [ shape=hexagon style=filled fillcolor=lightblue ]
+    gf [ shape=hexagon style=filled fillcolor=lightblue ]
+    zt [ shape=hexagon style=filled fillcolor=lightblue ]
+    bm [ shape=hexagon style=filled fillcolor=lightblue ]
+    cp [ shape=hexagon style=filled fillcolor=lightblue ]
+    gs [ shape=hexagon style=filled fillcolor=lightblue ]
+    sp [ shape=hexagon style=filled fillcolor=lightblue ]
+    bh [ shape=hexagon style=filled fillcolor=lightblue ]
+    xb [ shape=hexagon style=filled fillcolor=lightblue ]
+    fx [ shape=hexagon style=filled fillcolor=lightblue ]
+    gq [ shape=hexagon style=filled fillcolor=lightblue ]
+    xp [ shape=hexagon style=filled fillcolor=lightblue ]
+    hl [ shape=hexagon style=filled fillcolor=lightblue ]
+    sk [ shape=hexagon style=filled fillcolor=lightblue ]
+    mh [ shape=hexagon style=filled fillcolor=lightblue ]
+    qz [ shape=invtrapezium style=filled fillcolor=lightgreen ]
+    vg [ shape=invtrapezium style=filled fillcolor=lightgreen ]
+    sh [ shape=hexagon style=filled fillcolor=lightblue ]
+    jh [ shape=hexagon style=filled fillcolor=lightblue ]
+    kp [ shape=invtrapezium style=filled fillcolor=lightgreen ]
+    gp [ shape=hexagon style=filled fillcolor=lightblue ]
+    gc [ shape=invtrapezium style=filled fillcolor=lightgreen ]
+    xf [ shape=hexagon style=filled fillcolor=lightblue ]
+    cv [ shape=hexagon style=filled fillcolor=lightblue ]
+    db [ shape=invtrapezium style=filled fillcolor=lightgreen ]
+    kr [ shape=hexagon style=filled fillcolor=lightblue ]
+    xz [ shape=hexagon style=filled fillcolor=lightblue ]
+    fs [ shape=hexagon style=filled fillcolor=lightblue ]
+    xm [ shape=hexagon style=filled fillcolor=lightblue ]
+    qf [ shape=hexagon style=filled fillcolor=lightblue ]
+    fn [ shape=hexagon style=filled fillcolor=lightblue ]
+    kh [ shape=hexagon style=filled fillcolor=lightblue ]
+    vh [ shape=hexagon style=filled fillcolor=lightblue ]
+    mq [ shape=hexagon style=filled fillcolor=lightblue ]
+    zn [ shape=hexagon style=filled fillcolor=lightblue ]
+    sv [ shape=hexagon style=filled fillcolor=lightblue ]
+    lh [ shape=hexagon style=filled fillcolor=lightblue ]
+    dl [ shape=hexagon style=filled fillcolor=lightblue ]
+    zx [ shape=hexagon style=filled fillcolor=lightblue ]
+    pz [ shape=hexagon style=filled fillcolor=lightblue ]
+    cn [ shape=hexagon style=filled fillcolor=lightblue ]
+    xs [ shape=hexagon style=filled fillcolor=lightblue ]
+    gb [ shape=hexagon style=filled fillcolor=lightblue ]
+    tx [ shape=invtrapezium style=filled fillcolor=lightgreen ]
+    sd [ shape=invtrapezium style=filled fillcolor=lightgreen ]
+    lx [ shape=invtrapezium style=filled fillcolor=lightgreen ]
+    zs [ shape=hexagon style=filled fillcolor=lightblue ]
+    broadcaster
+
+    nd -> {fs}
+    ql -> {qz}
+    gz -> {vv}
+    lg -> {zx, lx}
+    tr -> {sd}
+    vn -> {ql, qz}
+    kg -> {xz}
+    sj -> {gs}
+    bq -> {rx}
+    hf -> {xm}
+    vv -> {mq, db}
+    gf -> {fn, lx}
+    zt -> {sk}
+    bm -> {lx, cp}
+    cp -> {lx, gb}
+    gs -> {gq, qz}
+    sp -> {db, jh}
+    bh -> {kr, db}
+    xb -> {qz, vn}
+    fx -> {qf}
+    gq -> {qz, xb}
+    xp -> {zn, sd}
+    hl -> {tr, sd}
+    sk -> {nd}
+    mh -> {xs, sd}
+    qz -> {nd, sj, sk, gp, gc, vh, zt}
+    vg -> {bq}
+    sh -> {pz}
+    jh -> {kg}
+    kp -> {bq}
+    gp -> {zt}
+    gc -> {bq}
+    xf -> {xp}
+    cv -> {sd, hl}
+    db -> {kg, sp, kp, fx, jh, gz}
+    kr -> {db}
+    xz -> {zs, db}
+    fs -> {qz, sj}
+    xm -> {kh, lx}
+    qf -> {db, gz}
+    fn -> {bm}
+    kh -> {lx, gf}
+    vh -> {qz, gp}
+    mq -> {bh, db}
+    zn -> {cv}
+    sv -> {xf, sd}
+    lh -> {lx}
+    dl -> {lh, lx}
+    zx -> {lx, hf}
+    pz -> {sd, cn}
+    cn -> {sd, sv}
+    xs -> {sh}
+    gb -> {lx, dl}
+    tx -> {bq}
+    sd -> {mh, tx, sh, xf, zn, xs}
+    lx -> {fn, hf, vg, lg}
+    zs -> {db, fx}
+    broadcaster -> {vh, sp, lg, mh}
+}

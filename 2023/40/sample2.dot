@@ -1,0 +1,18 @@
+digraph g {
+    rankdir=LR
+    graph [ fontname="Noto Sans" ]
+    node  [ fontname="Noto Sans" ]
+    edge  [ fontname="Noto Sans" ]
+
+    broadcaster
+    a [ shape=invtrapezium style=filled fillcolor=lightgreen ]
+    inv [ shape=hexagon style=filled fillcolor=lightblue ]
+    b [ shape=invtrapezium style=filled fillcolor=lightgreen ]
+    con [ shape=hexagon style=filled fillcolor=lightblue ]
+
+    broadcaster -> a
+    a -> { inv, con }
+    inv -> b
+    b -> con
+    con -> output
+}
