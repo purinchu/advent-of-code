@@ -32,7 +32,6 @@ my $watched;           # node name to watch
 my $watch_for;         # value to watch for
 my $spam_msgs;         # output every watched message in/out
 my $refl_input;        # echos the input before running
-my $propagate;         # try to determine cycle period by propagating push
 
 GetOptions(
     "cycles|c=i"   => \$max_cycles,
@@ -40,7 +39,6 @@ GetOptions(
     "for|f=i"      => \$watch_for,
     "spam|s"       => \$spam_msgs,
     "reflect|r"    => \$refl_input,
-    "propagate|p"  => \$propagate,
 )
     or die "Error reading command line options";
 
@@ -68,31 +66,11 @@ if (G_DEBUG_INPUT) {
 my $count = 0;
 my @tally = (0, 0);
 
-if ($propagate) {
-    say "Propagating low pulse periods";
-
-    my ($new_p, @next_updates) = propagate_first_low_pulse(1, 'broadcaster');
-    while (@next_updates) {
-        my $node = shift @next_updates;
-        my @more;
-
-        ($new_p, @more) = propagate_first_low_pulse($new_p, $node);
-        push @next_updates, @more;
-    }
-
-    say "Done!";
-}
-
 # push button repeatedly
-BUTTON: for (1..$max_cycles) {
+for (1..$max_cycles) {
     push @events, make_event('broadcaster', 'button', 0);
     while (@events) {
         $tally[handle_event(\@events)]++;
-
-        if ($propagate && $watched && exists $modules{$watched}->{first_0}) {
-            say "Node $watched saw its first 0";
-            last BUTTON;
-        }
     }
 
     $button_press++;
@@ -184,42 +162,6 @@ sub lcm($n1, $n2)
     }
 
     return $result;
-}
-
-# returns list of nodes that must be updated due to this change,
-# first_press is the number of button presses until the **0** pulse!
-sub propagate_first_low_pulse($first_press, $node)
-{
-    my $m = $modules{$node};
-
-    if (!exists $m->{in_cycle_0}) {
-        # our propagation varies by type
-        if ($m->{type} eq 'b') {
-            # broadcast, every push is a 0
-            $first_press = 0;
-        } elsif ($m->{type} eq '%') {
-            # flip flop, every other input 0 is a 0 out
-            $first_press = 2 * $first_press + 1;
-        } elsif ($m->{type} eq '&') {
-            # conjunction, every node being a 1 gives us a 0 out
-            # assume the math works out for now...
-            my @in_periods =
-                map { $modules{$_}->{in_cycle_0} // 1 }
-                keys $m->{in}->%*;
-            my $lcm = reduce { lcm ($a, $b) } $first_press, @in_periods;
-            $first_press = $lcm;
-        } # not handled: output nodes
-
-        $m->{in_cycle_0} = $first_press;
-    } else {
-        my $old_cycle = $m->{in_cycle_0} // 1;
-        $first_press = lcm($first_press, $old_cycle);
-        $m->{in_cycle_0} = $first_press;
-        return ($first_press) unless $old_cycle != $first_press;
-    }
-
-    # our first_press changed, propagate changes to our receivers
-    return ($first_press, $m->{out}->@*);
 }
 
 sub make_event($recv, $src, $pulse)
@@ -330,7 +272,6 @@ Usage: ./pulse.pl [-psr] [-c NUM] [-w NODE_NAME] [-f 0|1] [FILE_NAME]
                        output.
   -f | --for        -> Value to watch for (0 or 1).
   -s | --spam       -> When watching a node, also output msgs sent/received.
-  -p | --propagate  -> Try to determine common cycle in network, use with -w
   -r | --reflect    -> Echos input before starting
 
 FILE_NAME specifies the network configuration to simulate, and is 'input'
