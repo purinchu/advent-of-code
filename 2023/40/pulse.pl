@@ -42,12 +42,14 @@ do {
     %modules = load_input(@lines);
 };
 
+die "Unknown watch node $watched"
+    if $watched and !$modules{$watched};
+
 if (G_DEBUG_INPUT) {
     say j \%modules;
 }
 
 my $count = 0;
-
 my @tally = (0, 0);
 
 # push button repeatedly
@@ -114,6 +116,7 @@ sub make_event($recv, $src, $pulse)
 
 sub handle_event($events_ref)
 {
+    state $event_num = 0;
     my $e = shift $events_ref->@*;
     my $receiver = $modules{$e->{r}} or die "no receiver $e->{r}";
 
@@ -127,6 +130,13 @@ sub handle_event($events_ref)
         handle_broadcast($e, \@events);
     }
 
+    if ($watched && $e->{r} eq $watched) {
+        say "$event_num: $watched: received $e->{t} from $e->{src}";
+    } elsif ($watched && $e->{src} eq $watched) {
+        say "$event_num: $watched: sent $e->{t} to $e->{r}";
+    }
+
+    $event_num++;
     return $e->{t}; # 0 or 1 depending on pulse handled
 }
 
