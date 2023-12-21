@@ -178,17 +178,7 @@ char grid<T>::at(const pos_t col, const pos_t row) const
 }
 //}}}
 
-static const char *dir_name(Dir d)
-{
-    switch(d) {
-        case Dir::east:  return "east ";
-        case Dir::west:  return "west ";
-        case Dir::north: return "north";
-        case Dir::south: return "south";
-        default: return "ERROR";
-    }
-}
-
+#if 0
 static std::ostream& operator <<(std::ostream &os, const node &n)
 {
     std::ios::fmtflags os_flags(os.flags());
@@ -206,6 +196,7 @@ static std::ostream& operator <<(std::ostream &os, const node &n)
     os.flags(os_flags);
     return os;
 }
+#endif
 
 static auto make_grid(std::ifstream &input) -> grid<uint16_t>
 {
@@ -287,7 +278,6 @@ struct pathfinder
     vector<int> distances;
     vector<std::pair<node, int>> off_edge;
     unordered_map<node, bool> was_visited;
-//  unordered_map<node, node> predecessors;
 
     // misc metadata
     int W;
@@ -427,7 +417,6 @@ void pathfinder::find_min_path(const node start, const int max_steps)
             if (!was_visited.contains(candidate)) {
                 if (dist(candidate) > new_dist) {
                     set_dist(candidate, new_dist);
-//                  predecessors[candidate] = cur;
 
                     num_distance_updates++;
                 }
@@ -514,7 +503,8 @@ static void draw_color_grid(const pathfinder &p, const int max_steps)
         cout << "\n";
     }
 
-    cout << "Could reach " << p.was_visited.size() << " garden plots using up to " << max_steps << " steps.\n";
+    cout << "Could reach " << p.was_visited.size() << " garden plots.\n";
+    cout << "The ones highlighted are reachable using up to " << max_steps << " steps.\n";
 }
 
 static unsigned long count_cells_recursive(
@@ -568,35 +558,51 @@ static unsigned long count_cells_recursive(
     if (subdivide > 0) {
         // break up into visited cells that are <= the given value or those
         // greater.
-        int sum_above = std::count_if(p.was_visited.begin(), p.was_visited.end(),
+        int even_corners = std::count_if(p.was_visited.begin(), p.was_visited.end(),
                 [&p, subdivide](const auto &val) {
                 const auto d = p.dist(val.first);
                 return (d % 2 == 0 && d > subdivide);
                 });
-        int sum_below = std::count_if(p.was_visited.begin(), p.was_visited.end(),
+        int even_interior = std::count_if(p.was_visited.begin(), p.was_visited.end(),
                 [&p, subdivide](const auto &val) {
                 const auto d = p.dist(val.first);
                 return (d % 2 == 0 && d <= subdivide);
                 });
 
         std::cout << "For even parity:\n";
-        std::cout << "\t" << sum_above << " plots reachable >" << subdivide << "\n";
-        std::cout << "\t" << sum_below << " plots reachable <=" << subdivide << "\n";
+        std::cout << "\t" << even_corners << " plots reachable >" << subdivide << "\n";
+        std::cout << "\t" << even_interior << " plots reachable <=" << subdivide << "\n";
 
-        sum_above = std::count_if(p.was_visited.begin(), p.was_visited.end(),
+        int odd_corners = std::count_if(p.was_visited.begin(), p.was_visited.end(),
                 [&p, subdivide](const auto &val) {
                 const auto d = p.dist(val.first);
                 return (d % 2 == 1 && d > subdivide);
                 });
-        sum_below = std::count_if(p.was_visited.begin(), p.was_visited.end(),
+        int odd_interior = std::count_if(p.was_visited.begin(), p.was_visited.end(),
                 [&p, subdivide](const auto &val) {
                 const auto d = p.dist(val.first);
                 return (d % 2 == 1 && d <= subdivide);
                 });
 
         std::cout << "For odd parity:\n";
-        std::cout << "\t" << sum_above << " plots reachable >" << subdivide << "\n";
-        std::cout << "\t" << sum_below << " plots reachable <=" << subdivide << "\n";
+        std::cout << "\t" << odd_corners << " plots reachable >" << subdivide << "\n";
+        std::cout << "\t" << odd_interior << " plots reachable <=" << subdivide << "\n";
+
+        const int assumed_steps = 26501365; // from problem input
+        const int odd_full = odd_corners + odd_interior;
+        const int even_full = even_corners + even_interior;
+
+        // number of grids in each dir
+        const long n = (assumed_steps - g.width()/2) / g.width();
+
+        unsigned long total =  // Don't you feel so smart?? I feel so smart!!
+            ((n+1)*(n+1)) * odd_full +
+            (n*n) * even_full -
+            (n+1) * odd_corners +
+            n * even_corners; // so l33t!!!!111one
+
+        std::cout << "In theory the final answer for this particular remarkably well-behaved input\n";
+        std::cout << "is: \e[30;102m" << total << "\e[0m\n";
     }
 
     return sum;
@@ -607,7 +613,7 @@ int main(int argc, char **argv)
     using namespace std::chrono;
     using std::cout;
 
-    int max_steps = 6;
+    int max_steps = 0;
     int subdivide = 0;
     bool trisect = false;
     int opt;
@@ -628,11 +634,6 @@ int main(int argc, char **argv)
     if (optind >= argc) {
         std::cerr << "Enter a file to read\n";
         return 1;
-    }
-
-    // full search for problem
-    if (std::string{"input"} == argv[optind]) {
-        max_steps = 64;
     }
 
     std::ifstream input;
@@ -657,6 +658,13 @@ int main(int argc, char **argv)
 
     auto g = make_grid(input);
     auto H = g.height(), W = g.width();
+
+    if (!max_steps) {
+        max_steps = std::max(H, W) - 1;
+    }
+    if (!subdivide && W == H) {
+        subdivide = (W - 1) / 2;
+    }
 
     // find start
     node start{};
@@ -685,15 +693,13 @@ int main(int argc, char **argv)
 
     time_point t2 = steady_clock::now();
 
-    if (0) {
-        // here just to squelch stupid warning
-        cout << start;
+    if (!subdivide) {
+        // answer given by the subdivision code
+        cout << dist << "\n";
     }
 
-    cout << dist << "\n";
     cout << "time: " << duration<double>(t2 - t1).count() << "\n";
 
-    (void) dir_name; // silence clang warning about non-use
     return 0;
 }
 
