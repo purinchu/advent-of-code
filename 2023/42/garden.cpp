@@ -247,7 +247,6 @@ struct pathfinder
         };
 
         vector<std::pair<int, int>> dirs;
-
         for (size_t i = 0; i < checkers.size() / 2; i++) {
             dirs.emplace_back(checkers[i * 2], checkers[i * 2 + 1]);
         }
@@ -412,12 +411,12 @@ void pathfinder::find_min_path(const node start, const int max_steps)
     // before we return, ensure our list of out-of-bounds encounters has
     // been de-duplicated
     const auto comp = [](const auto &l, const auto &r) {
-        if (l.first < r.first) {
+        if (l.second < r.second) {
             return true;
-        } else if (r.first < l.first) {
+        } else if (r.second < l.second) {
             return false;
         } else {
-            return l.second < r.second;
+            return l.first < r.first;
         }
     };
 
