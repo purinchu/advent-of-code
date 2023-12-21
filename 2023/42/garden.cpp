@@ -40,7 +40,7 @@ using std::unordered_map;
 using std::vector;
 
 enum class Dir { west, east, north, south };
-using pos_t = uint16_t;
+using pos_t = int;
 
 struct node
 {
@@ -53,7 +53,7 @@ struct node
     pos_t col = 0;
     enum { normal, end, start } type = normal;
 
-    bool operator==(const node& o) const { return row == o.row && col == o.col; };
+    bool operator==(const node& o) const = default;
 };
 
 template<>
@@ -254,10 +254,8 @@ struct pathfinder
         return dirs;
     }
 
-    bool hit_rock_dirs(pos_t cx, pos_t cy, int dx, int dy) const;
-    bool hit_rock(pos_t nx, pos_t ny) const;
-
-    bool is_start(const node &n) const { return n.type == node::start; };
+    bool hit_rock_dirs(int dist, pos_t cx, pos_t cy, int dx, int dy);
+    bool hit_rock(int dist, pos_t nx, pos_t ny);
 
     node end_node() const { node n{.type = node::end}; return n; };
 
@@ -274,6 +272,7 @@ struct pathfinder
 
     // problem state
     vector<int> distances;
+    vector<std::pair<node, int>> off_edge;
     unordered_map<node, bool> was_visited;
 //  unordered_map<node, node> predecessors;
 
@@ -287,7 +286,7 @@ struct pathfinder
     uint_fast64_t num_neighbor_added = 0, num_distance_updates = 0;
 };
 
-bool pathfinder::hit_rock_dirs(pos_t cx, pos_t cy, int dx, int dy) const
+bool pathfinder::hit_rock_dirs(int dist, pos_t cx, pos_t cy, int dx, int dy)
 {
     if (!dx && !dy) {
         return false;
@@ -295,29 +294,43 @@ bool pathfinder::hit_rock_dirs(pos_t cx, pos_t cy, int dx, int dy) const
 
     // just go through all the directions...
     if        (dx ==  0 && dy ==  2) {
-        return hit_rock(cx, cy + 1) || hit_rock(cx, cy + 2);
+        return hit_rock(dist, cx, cy + 1) || hit_rock(dist, cx, cy + 2);
     } else if (dx ==  0 && dy == -2) {
-        return hit_rock(cx, cy - 1) || hit_rock(cx, cy - 2);
+        return hit_rock(dist, cx, cy - 1) || hit_rock(dist, cx, cy - 2);
     } else if (dx ==  2 && dy ==  0) {
-        return hit_rock(cx + 1, cy) || hit_rock(cx + 2, cy);
+        return hit_rock(dist, cx + 1, cy) || hit_rock(dist, cx + 2, cy);
     } else if (dx == -2 && dy ==  0) {
-        return hit_rock(cx - 1, cy) || hit_rock(cx - 2, cy);
+        return hit_rock(dist, cx - 1, cy) || hit_rock(dist, cx - 2, cy);
     } else if (dx ==  1 && dy ==  1) {
-        return hit_rock(cx + 1, cy + 1) || (hit_rock(cx + 1, cy) && hit_rock(cx, cy + 1));
+        return hit_rock(dist, cx + 1, cy + 1) || (hit_rock(dist, cx + 1, cy) && hit_rock(dist, cx, cy + 1));
     } else if (dx ==  1 && dy == -1) {
-        return hit_rock(cx + 1, cy - 1) || (hit_rock(cx + 1, cy) && hit_rock(cx, cy - 1));
+        return hit_rock(dist, cx + 1, cy - 1) || (hit_rock(dist, cx + 1, cy) && hit_rock(dist, cx, cy - 1));
     } else if (dx == -1 && dy ==  1) {
-        return hit_rock(cx - 1, cy + 1) || (hit_rock(cx - 1, cy) && hit_rock(cx, cy + 1));
+        return hit_rock(dist, cx - 1, cy + 1) || (hit_rock(dist, cx - 1, cy) && hit_rock(dist, cx, cy + 1));
     } else if (dx == -1 && dy == -1) {
-        return hit_rock(cx - 1, cy - 1) || (hit_rock(cx - 1, cy) && hit_rock(cx, cy - 1));
+        return hit_rock(dist, cx - 1, cy - 1) || (hit_rock(dist, cx - 1, cy) && hit_rock(dist, cx, cy - 1));
     }
 
     return true;
 }
 
-bool pathfinder::hit_rock(pos_t nx, pos_t ny) const
+bool pathfinder::hit_rock(int dist, pos_t nx, pos_t ny)
 {
-    return (nx >= W || ny >= H || m_g.at(nx, ny) == '#');
+    // if we go off board, record where it would have happened
+    if (nx >= W) {
+        off_edge.emplace_back(node{.row = ny, .col = nx - W}, dist);
+    }
+    if (ny >= H) {
+        off_edge.emplace_back(node{.row = ny - H, .col = nx}, dist);
+    }
+    if (nx < 0) {
+        off_edge.emplace_back(node{.row = ny, .col = nx + W}, dist);
+    }
+    if (ny < 0) {
+        off_edge.emplace_back(node{.row = ny + H, .col = nx}, dist);
+    }
+
+    return (nx < 0 || ny < 0 || nx >= W || ny >= H || m_g.at(nx, ny) == '#');
 }
 
 void pathfinder::find_min_path(const node start, const int max_steps)
@@ -374,7 +387,7 @@ void pathfinder::find_min_path(const node start, const int max_steps)
             // we're taking an even number of steps and must move each
             // step, so ignore odd steps and plan out 2 steps at a time
             // this checks for that and for staying on the board
-            if (hit_rock_dirs(cx, cy, dx, dy)) {
+            if (hit_rock_dirs(new_dist, cx, cy, dx, dy)) {
                 continue; // can't go through the rocks
             }
 
@@ -457,6 +470,7 @@ static void draw_color_grid(const pathfinder &p, const int max_steps)
 
 static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start, int max_steps)
 {
+    using std::pair;
     unsigned long sum = 0;
 
     pathfinder p(g);
@@ -466,6 +480,14 @@ static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start, 
 
     if (g.at(start.col, start.row) == 'S') {
         draw_color_grid(p, max_steps);
+    }
+
+    // the pathfinder will mark where it went off the board so that we
+    // don't have to back-calculate later.
+    // TODO : Remove dup cells.
+    for (const auto &oob : p.off_edge) {
+        std::cout << "went off edge, could restart at " << oob.first
+            << " with " << (max_steps - oob.second) << " steps left.\n";
     }
 
     return sum;
@@ -512,6 +534,11 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    if (max_steps % 2 != 0) {
+        std::cerr << "Max steps must be even. Sorry.\n";
+        return 1;
+    }
+
     auto g = make_grid(input);
     auto H = g.height(), W = g.width();
 
@@ -531,6 +558,10 @@ int main(int argc, char **argv)
         std::cout << "Couldn't find the start point!\n";
         return 1;
     }
+
+    // now that we know we found it, reset to type=normal to avoid
+    // splintering the multiverse
+    start.type = node::normal;
 
     time_point t1 = steady_clock::now();
 
