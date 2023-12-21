@@ -29,6 +29,7 @@
 static const bool g_show_input = false;
 static const bool g_show_final = true;
 static const bool g_show_stats = false;
+static const bool g_use_doublesteps = false;
 static const bool g_show_distances = false;
 
 // common types
@@ -347,24 +348,29 @@ void pathfinder::find_min_path(const node start, const int max_steps)
         decltype(node_distance_compare)
         > to_visit(node_distance_compare);
 
-    if (0 && max_steps % 2 == 0) {
+    if constexpr (g_use_doublesteps) {
+        if (max_steps % 2 != 0) {
+            // make one step manually and then go by two as normal
+            // note that we can't ever land on the start spot again in this
+            // situation so it shouldn't be part of the visit set!
+
+            for (const auto &new_dir : neighbor_dirs_one_step()) {
+                auto [dx, dy] = new_dir;
+                if (hit_rock(1, start.col + dx, start.row + dy)) {
+                    continue;
+                }
+
+                node c{start.col + dx, start.row + dy};
+                set_dist(c, 1);
+                to_visit.push(c);
+            }
+        }
+    }
+
+    // can happen if steps are even or double-stepping is not in use
+    if (to_visit.empty()) {
         set_dist(start, 0);
         to_visit.push(start);
-    } else {
-        // make one step manually and then go by two as normal
-        // note that we can't ever land on the start spot again in this
-        // situation so it shouldn't be part of the visit set!
-
-        for (const auto &new_dir : neighbor_dirs_one_step()) {
-            auto [dx, dy] = new_dir;
-            if (hit_rock(1, start.col + dx, start.row + dy)) {
-                continue;
-            }
-
-            node c{start.col + dx, start.row + dy};
-            set_dist(c, 1);
-            to_visit.push(c);
-        }
     }
 
     while(!to_visit.empty()) {
@@ -395,9 +401,14 @@ void pathfinder::find_min_path(const node start, const int max_steps)
             continue;
         }
 
+        auto neighbors = neighbor_dirs_for_node();
+        // in DCE we trust...
+        if constexpr (!g_use_doublesteps) {
+            neighbors = neighbor_dirs_one_step();
+        }
+
         // Go through all possible directions and new nodes
-//      for (const auto &new_dir : neighbor_dirs_for_node()) {
-        for (const auto &new_dir : neighbor_dirs_one_step()) {
+        for (const auto &new_dir : as_const(neighbors)) {
             pos_t nx = cx;
             pos_t ny = cy;
             auto [dx, dy] = new_dir;
@@ -405,12 +416,18 @@ void pathfinder::find_min_path(const node start, const int max_steps)
             nx += dx;
             ny += dy;
 
-            // we're taking an even number of steps and must move each step,
-            // so plan out 2 steps at a time. This checks for that and for
-            // staying on the board
-//          if (hit_rock_dirs(new_dist, cx, cy, dx, dy)) {
-            if (hit_rock(new_dist, nx, ny)) {
-                continue; // can't go through the rocks
+            if constexpr (g_use_doublesteps) {
+                // we're taking an even number of steps and must move each
+                // step, so plan out 2 steps at a time. This checks for that
+                // and for staying on the board
+                if (hit_rock_dirs(new_dist, cx, cy, dx, dy)) {
+                    continue; // can't go through the rocks
+                }
+            }
+            else {
+                if (hit_rock(new_dist, nx, ny)) {
+                    continue; // can't go through the rocks
+                }
             }
 
             node candidate { ny, nx };
