@@ -49,7 +49,6 @@ struct node
     // vertically for the next move.
     pos_t row = 0;      // start/end node are at any position
     pos_t col = 0;
-    bool even_parity = true; // to get back to same spot need 2 steps
     enum { normal, end, start } type = normal;
 
     bool operator==(const node& o) const = default;
@@ -63,7 +62,7 @@ struct std::hash<node>
         std::size_t h1 = std::hash<pos_t>{}(n.row);
         std::size_t h2 = std::hash<pos_t>{}(n.col);
 
-        return h1 ^ (h2 << 1) ^ (n.even_parity << 2);
+        return h1 ^ (h2 << 1);
     }
 };
 
@@ -198,7 +197,6 @@ std::ostream& operator <<(std::ostream &os, const node &n)
 
     os << std::setw(2) << (n.col+1) << ","
         << std::setw(2) << (n.row+1) << " "
-        << (n.even_parity ? "(even)" : "(odd)") << " "
         << (n.type == node::start ? "(start)" : "") << " "
         << (n.type == node::end ? "(end)" : "") << " "
         ;
@@ -231,13 +229,12 @@ struct pathfinder
         : m_g(g)
         , W(g.width())
         , H(g.height())
-        , max_steps(1)
         , part1_rules(use_part1_rules)
     {
         distances.assign(W * H * 2, std::numeric_limits<int>::max());
     }
 
-    void find_min_path(const node start);
+    void find_min_path(const node start, const int max_steps);
 
     // support routines
     vector<std::pair<int, int>> neighbor_dirs_for_node(const node) const {
@@ -265,7 +262,7 @@ struct pathfinder
 
     // distances
     std::size_t idx_from_node(const node n) const {
-        return (n.row * W * 2) + (n.col * 2) + (int) n.even_parity;
+        return (n.row * W) + (n.col);
     };
 
     int dist (const node n) const { return distances[idx_from_node(n)]; };
@@ -282,7 +279,6 @@ struct pathfinder
     // misc metadata
     int W;
     int H;
-    int max_steps;
     bool part1_rules;
 
     // stats
@@ -324,7 +320,7 @@ bool pathfinder::hit_rock(pos_t nx, pos_t ny) const
     return (nx >= W || ny >= H || m_g.at(nx, ny) == '#');
 }
 
-void pathfinder::find_min_path(const node start)
+void pathfinder::find_min_path(const node start, const int max_steps)
 {
     const auto node_distance_compare = [&](const node &l, const node &r) {
         return dist(l) > dist(r);
@@ -389,35 +385,37 @@ void pathfinder::find_min_path(const node start)
             pos_t ny = cy;
             auto [dx, dy] = new_dir;
 
-            for (int steps = 1; steps <= max_steps; steps++) {
-                nx += dx;
-                ny += dy;
+            nx += dx;
+            ny += dy;
 
-                // we're taking an even number of steps and must move each
-                // step, so ignore odd steps and plan out 2 steps at a time
-                // this checks for that and for staying on the board
-                if (hit_rock_dirs(cx, cy, dx, dy)) {
-                    break; // can't go through the rocks
+            // we're taking an even number of steps and must move each
+            // step, so ignore odd steps and plan out 2 steps at a time
+            // this checks for that and for staying on the board
+            if (hit_rock_dirs(cx, cy, dx, dy)) {
+                continue; // can't go through the rocks
+            }
+
+            new_dist += 2; // 2 steps at once
+
+            if (new_dist > max_steps) {
+                continue;
+            }
+
+            // TODO: Inescapable that we need to record num steps in the state,
+            // so we can remove the was_visited check and make this a BFS.
+            // For the morning.
+            node candidate { ny, nx };
+
+            if (!was_visited.contains(candidate)) {
+                if (dist(candidate) > new_dist) {
+                    set_dist(candidate, new_dist);
+                    predecessors[candidate] = cur;
+
+                    num_distance_updates++;
                 }
 
-                new_dist += 2; // 2 steps at once
-
-                // TODO: Inescapable that we need to record num steps in the state,
-                // so we can remove the was_visited check and make this a BFS.
-                // For the morning.
-                node candidate { ny, nx, cur.even_parity };
-
-                if (!was_visited.contains(candidate)) {
-                    if (dist(candidate) > new_dist) {
-                        set_dist(candidate, new_dist);
-                        predecessors[candidate] = cur;
-
-                        num_distance_updates++;
-                    }
-
-                    to_visit.push(candidate);
-                    num_neighbor_added++;
-                }
+                to_visit.push(candidate);
+                num_neighbor_added++;
             }
         }
 
@@ -431,6 +429,7 @@ int main(int argc, char **argv)
     using std::cout;
 
     bool part1_rules = false;
+    int max_steps = 6;
     int opt;
     while ((opt = getopt(argc, argv, "1h")) != -1) {
         switch(opt) {
@@ -447,6 +446,11 @@ int main(int argc, char **argv)
     if (optind >= argc) {
         std::cerr << "Enter a file to read\n";
         return 1;
+    }
+
+    // full search for problem
+    if (std::string{"input"} == argv[optind]) {
+        max_steps = 64;
     }
 
     std::ifstream input;
@@ -480,7 +484,7 @@ int main(int argc, char **argv)
 
     time_point t1 = steady_clock::now();
 
-    p.find_min_path(start);
+    p.find_min_path(start, max_steps);
 
     time_point t2 = steady_clock::now();
 
@@ -499,7 +503,7 @@ int main(int argc, char **argv)
         for (pos_t j = 0; j < H; j++) {
             for (pos_t i = 0; i < W; i++) {
                 node n{.row = j, .col = i};
-                if (p.dist(n) == 6) {
+                if (p.dist(n) <= 6) {
                     sum++;
                     cout << "\e[31;42m" << g.at(i, j);
                 } else {
