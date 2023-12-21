@@ -29,7 +29,6 @@
 static const bool g_show_input = false;
 static const bool g_show_final = true;
 static const bool g_show_stats = false;
-static const bool g_use_doublesteps = false;
 static const bool g_show_distances = false;
 
 // common types
@@ -229,6 +228,7 @@ struct pathfinder
     }
 
     void find_min_path(const node start, const int max_steps);
+    pathfinder &set_doublestep(bool do_doublestep) { m_use_doublesteps = do_doublestep; return *this; };
 
     // support routines
     vector<std::pair<int, int>> neighbor_dirs_one_step() const {
@@ -279,6 +279,7 @@ struct pathfinder
     vector<int> distances;
     vector<std::pair<node, int>> off_edge;
     unordered_map<node, bool> was_visited;
+    bool m_use_doublesteps = true; // false in subdivision mode
 
     // misc metadata
     int W;
@@ -348,7 +349,7 @@ void pathfinder::find_min_path(const node start, const int max_steps)
         decltype(node_distance_compare)
         > to_visit(node_distance_compare);
 
-    if constexpr (g_use_doublesteps) {
+    if (m_use_doublesteps) {
         if (max_steps % 2 != 0) {
             // make one step manually and then go by two as normal
             // note that we can't ever land on the start spot again in this
@@ -396,7 +397,7 @@ void pathfinder::find_min_path(const node start, const int max_steps)
 
         int new_dist = dist(cur) + 1;
 
-        if constexpr (g_use_doublesteps) {
+        if (m_use_doublesteps) {
             new_dist++; // 2 steps at a time
         }
 
@@ -406,11 +407,9 @@ void pathfinder::find_min_path(const node start, const int max_steps)
             continue;
         }
 
-        auto neighbors = neighbor_dirs_for_node();
-        // in DCE we trust...
-        if constexpr (!g_use_doublesteps) {
-            neighbors = neighbor_dirs_one_step();
-        }
+        const auto neighbors = m_use_doublesteps
+            ? neighbor_dirs_for_node()
+            : neighbor_dirs_one_step();
 
         // Go through all possible directions and new nodes
         for (const auto &new_dir : as_const(neighbors)) {
@@ -421,7 +420,7 @@ void pathfinder::find_min_path(const node start, const int max_steps)
             nx += dx;
             ny += dy;
 
-            if constexpr (g_use_doublesteps) {
+            if (m_use_doublesteps) {
                 // we're taking an even number of steps and must move each
                 // step, so plan out 2 steps at a time. This checks for that
                 // and for staying on the board
@@ -541,7 +540,8 @@ static unsigned long count_cells_recursive(
 
     pathfinder p(g);
 
-    p.find_min_path(start, max_steps);
+    p.set_doublestep(subdivide == 0)
+     .find_min_path(start, max_steps);
     sum = p.was_visited.size();
 
     if (g.at(start.col, start.row) == 'S') {
@@ -564,13 +564,22 @@ static unsigned long count_cells_recursive(
             tri_dist[3 * cy + cx]++;
         }
 
+        const auto os_flags(std::cout.flags());
+
+        static const char *const dir_chars[] = {
+            "┌", "┬", "┐",
+            "├", "┼", "┤",
+            "└", "┴", "┘",
+        };
         for (size_t j = 0; j < 3; j++) {
             for (size_t i = 0; i < 3; i++) {
                 const auto idx = j * 3 + i;
-                std::cout << "Sec. " << idx << ' ' << tri_dist[idx] << ", ";
+                std::cout << dir_chars[i == 2 ? idx - 1 : idx] << " \e[33m" << std::setw(5) << tri_dist[idx] << "\e[0m ";
             }
-            std::cout << "\n";
+            std::cout << dir_chars[j*3+2] << "\n";
         }
+
+        std::cout.flags(os_flags);
 
         int sum = std::accumulate(tri_dist.begin(), tri_dist.end(), 0);
         std::cout << "checksum: " << sum << "\n";
@@ -636,18 +645,25 @@ int main(int argc, char **argv)
 
     int max_steps = 0;
     int subdivide = 0;
+    bool subdivide_flag = true; // default on so answer will generate on problem input
     bool trisect = false;
     int opt;
-    while ((opt = getopt(argc, argv, "th")) != -1) {
+    while ((opt = getopt(argc, argv, "nth")) != -1) {
         switch(opt) {
             default:
-            case 's':
-                subdivide = true;
+            case 'n':
+                subdivide_flag = false;
                 break;
             case 't':
                 trisect = true;
                 break;
-            case 'h': cout << "usage: ./garden [-t] filename [max_steps] [subdivision]\n";
+            case 'h':
+                cout << "usage: " << argv[0] << " [-n] [-t] filename [max_steps] [subdivision]\n";
+                cout << "  -n  Do not subdivide based on number of steps reached\n";
+                cout << "      This defaults to a value based on input size.\n";
+                cout << "  -t  Trisect output. Outputs 3x3 number of grids possible.\n";
+                cout << "\n";
+                cout << "max_steps defaults to a size based on input if not set.\n";
                 return 0;
         }
     }
@@ -685,6 +701,9 @@ int main(int argc, char **argv)
     }
     if (!subdivide && W == H) {
         subdivide = (W - 1) / 2;
+    }
+    if (!subdivide_flag) {
+        subdivide = 0; // disable
     }
 
     // find start
