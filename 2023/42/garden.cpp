@@ -485,7 +485,7 @@ static void draw_color_grid(const pathfinder &p, const int max_steps)
     cout << "Could reach " << p.was_visited.size() << " garden plots using up to " << max_steps << " steps.\n";
 }
 
-static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start, int max_steps)
+static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start, int max_steps, bool trisect)
 {
     using std::pair;
     unsigned long sum = 0;
@@ -499,11 +499,32 @@ static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start, 
         draw_color_grid(p, max_steps);
     }
 
-    // the pathfinder will mark where it went off the board so that we
-    // don't have to back-calculate later.
-    for (const auto &oob : p.off_edge) {
-        std::cout << "went off edge, could restart at " << oob.first
-            << " with " << (max_steps - oob.second) << " steps left.\n";
+    if (trisect) {
+        // break up distances by what part of grid they fell into
+        vector<int> tri_dist(9, 0);
+        pos_t third_h = g.height() / 3;
+        pos_t third_w = g.width() / 3;
+
+        for (const auto &p : p.was_visited) {
+            const node n = p.first;
+            pos_t cy = 2, cx = 2;
+            while(n.row < cy * third_h)
+                cy--;
+            while(n.col < cx * third_w)
+                cx--;
+            tri_dist[3 * cy + cx]++;
+        }
+
+        for (size_t j = 0; j < 3; j++) {
+            for (size_t i = 0; i < 3; i++) {
+                const auto idx = j * 3 + i;
+                std::cout << "Sec. " << idx << ' ' << tri_dist[idx] << ", ";
+            }
+            std::cout << "\n";
+        }
+
+        int sum = std::accumulate(tri_dist.begin(), tri_dist.end(), 0);
+        std::cout << "checksum: " << sum << "\n";
     }
 
     return sum;
@@ -515,11 +536,15 @@ int main(int argc, char **argv)
     using std::cout;
 
     int max_steps = 6;
+    bool trisect = false;
     int opt;
-    while ((opt = getopt(argc, argv, "1h")) != -1) {
+    while ((opt = getopt(argc, argv, "th")) != -1) {
         switch(opt) {
             default:
-            case 'h': cout << "usage: ./garden filename [max_steps]\n";
+            case 't':
+                trisect = true;
+                break;
+            case 'h': cout << "usage: ./garden [-t] filename [max_steps]\n";
                 return 0;
         }
     }
@@ -581,7 +606,7 @@ int main(int argc, char **argv)
 
     time_point t1 = steady_clock::now();
 
-    unsigned long dist = count_cells_recursive(g, start, max_steps);
+    unsigned long dist = count_cells_recursive(g, start, max_steps, trisect);
 
     time_point t2 = steady_clock::now();
 
