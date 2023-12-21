@@ -28,6 +28,7 @@
 
 static const bool g_show_input = true;
 static const bool g_show_final = true;
+static const bool g_show_distances = false;
 
 // common types
 
@@ -490,9 +491,11 @@ int main(int argc, char **argv)
 
     int sum = 0;
 
-    for (const auto &n : p.was_visited) {
-        const auto [node, met] = n;
-        cout << node << "visited? " << met << ", distance was " << p.dist(node) << "\n";
+    if constexpr (g_show_distances) {
+        for (const auto &n : p.was_visited) {
+            const auto [node, met] = n;
+            cout << node << "visited? " << met << ", distance was " << p.dist(node) << "\n";
+        }
     }
 
     if constexpr (g_show_final) {
@@ -503,7 +506,7 @@ int main(int argc, char **argv)
         for (pos_t j = 0; j < H; j++) {
             for (pos_t i = 0; i < W; i++) {
                 node n{.row = j, .col = i};
-                if (p.dist(n) <= 6) {
+                if (p.dist(n) <= max_steps) {
                     sum++;
                     cout << "\e[31;42m" << g.at(i, j);
                 } else {
@@ -525,7 +528,7 @@ int main(int argc, char **argv)
         cout << ", time: " << duration<double>(t2 - t1).count();
         cout << "\n";
 
-        cout << "Could reach " << sum << " garden plots in this configuration with these steps.\n";
+        cout << "Could reach " << sum << " garden plots using up to " << max_steps << " steps.\n";
     }
 
     (void) dir_name; // silence clang warning about non-use
