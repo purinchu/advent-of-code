@@ -515,7 +515,13 @@ static void draw_color_grid(const pathfinder &p, const int max_steps)
     cout << "Could reach " << p.was_visited.size() << " garden plots using up to " << max_steps << " steps.\n";
 }
 
-static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start, int max_steps, bool trisect)
+static unsigned long count_cells_recursive(
+        const grid<uint16_t> &g,
+        node start,
+        int max_steps,
+        bool trisect,
+        int subdivide
+        )
 {
     using std::pair;
     unsigned long sum = 0;
@@ -526,7 +532,7 @@ static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start, 
     sum = p.was_visited.size();
 
     if (g.at(start.col, start.row) == 'S') {
-        draw_color_grid(p, max_steps);
+        draw_color_grid(p, subdivide ? subdivide : max_steps);
     }
 
     if (trisect) {
@@ -557,6 +563,18 @@ static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start, 
         std::cout << "checksum: " << sum << "\n";
     }
 
+    if (subdivide > 0) {
+        // break up into visited cells that are <= the given value or those
+        // greater.
+        int sum_above = std::count_if(p.was_visited.begin(), p.was_visited.end(),
+                [&p, subdivide](const auto &val) { return p.dist(val.first) > subdivide; });
+        int sum_below = std::count_if(p.was_visited.begin(), p.was_visited.end(),
+                [&p, subdivide](const auto &val) { return p.dist(val.first) <= subdivide; });
+
+        std::cout << sum_above << " plots reachable >" << subdivide << "\n";
+        std::cout << sum_below << " plots reachable <=" << subdivide << "\n";
+    }
+
     return sum;
 }
 
@@ -566,15 +584,19 @@ int main(int argc, char **argv)
     using std::cout;
 
     int max_steps = 6;
+    int subdivide = 0;
     bool trisect = false;
     int opt;
     while ((opt = getopt(argc, argv, "th")) != -1) {
         switch(opt) {
             default:
+            case 's':
+                subdivide = true;
+                break;
             case 't':
                 trisect = true;
                 break;
-            case 'h': cout << "usage: ./garden [-t] filename [max_steps]\n";
+            case 'h': cout << "usage: ./garden [-t] filename [max_steps] [subdivision]\n";
                 return 0;
         }
     }
@@ -605,6 +627,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    if (++optind < argc) {
+        subdivide = std::stoi(argv[optind]);
+    }
+
     auto g = make_grid(input);
     auto H = g.height(), W = g.width();
 
@@ -631,7 +657,7 @@ int main(int argc, char **argv)
 
     time_point t1 = steady_clock::now();
 
-    unsigned long dist = count_cells_recursive(g, start, max_steps, trisect);
+    unsigned long dist = count_cells_recursive(g, start, max_steps, trisect, subdivide);
 
     time_point t2 = steady_clock::now();
 
