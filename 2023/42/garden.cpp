@@ -394,7 +394,12 @@ void pathfinder::find_min_path(const node start, const int max_steps)
 
         auto cx = cur.col, cy = cur.row;
 
-        int new_dist = dist(cur) + 1; // 2 steps at a time
+        int new_dist = dist(cur) + 1;
+
+        if constexpr (g_use_doublesteps) {
+            new_dist++; // 2 steps at a time
+        }
+
         if (new_dist > max_steps) {
             // if we're searching this distance there's nothing shorter left
             was_visited[cur] = true;
@@ -423,8 +428,7 @@ void pathfinder::find_min_path(const node start, const int max_steps)
                 if (hit_rock_dirs(new_dist, cx, cy, dx, dy)) {
                     continue; // can't go through the rocks
                 }
-            }
-            else {
+            } else {
                 if (hit_rock(new_dist, nx, ny)) {
                     continue; // can't go through the rocks
                 }
