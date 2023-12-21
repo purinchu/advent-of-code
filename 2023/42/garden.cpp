@@ -53,7 +53,7 @@ struct node
     pos_t col = 0;
     enum { normal, end, start } type = normal;
 
-    bool operator==(const node& o) const = default;
+    bool operator==(const node& o) const { return row == o.row && col == o.col; };
 };
 
 template<>
@@ -322,7 +322,7 @@ bool pathfinder::hit_rock(pos_t nx, pos_t ny) const
 
 void pathfinder::find_min_path(const node start, const int max_steps)
 {
-    const auto node_distance_compare = [&](const node &l, const node &r) {
+    const auto node_distance_compare = [this](const node &l, const node &r) {
         return dist(l) > dist(r);
     };
 
@@ -358,6 +358,7 @@ void pathfinder::find_min_path(const node start, const int max_steps)
         int new_dist = dist(cur) + 2; // 2 steps at a time
         if (new_dist > max_steps) {
             // if we're searching this distance there's nothing shorter left
+            was_visited[cur] = true;
             continue;
         }
 
@@ -399,8 +400,6 @@ void draw_color_grid(const pathfinder &p, const int max_steps)
 {
     using std::cout;
 
-    int max_distance = 0;
-
     // 'Qualia' color theme
     // https://www.reddit.com/r/unixporn/comments/hjzw5f/oc_qualitative_color_palette_for_ansi_terminal/fwpludj/
     using std::make_tuple;
@@ -428,7 +427,6 @@ void draw_color_grid(const pathfinder &p, const int max_steps)
         for (pos_t i = 0; i < W; i++) {
             node n{.row = j, .col = i};
             if (auto d = p.dist(n); d <= max_steps) {
-                max_distance = std::max(max_distance, p.dist(n));
                 sum++;
 
                 const auto [cr, cg, cb] = color_cycle[d % color_cycle.size()];
@@ -454,9 +452,7 @@ void draw_color_grid(const pathfinder &p, const int max_steps)
         cout << "\n";
     }
 
-    cout << "Could reach " << sum << " garden plots using up to " << max_steps << " steps.\n";
-    cout << "(compare to was_visited: " << p.was_visited.size() << "\n";
-    cout << "Highest distance on reached plot: " << max_distance << "\n";
+    cout << "Could reach " << p.was_visited.size() << " garden plots using up to " << max_steps << " steps.\n";
 }
 
 int main(int argc, char **argv)
