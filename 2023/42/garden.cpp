@@ -188,7 +188,7 @@ static const char *dir_name(Dir d)
     }
 }
 
-std::ostream& operator <<(std::ostream &os, const node &n)
+static std::ostream& operator <<(std::ostream &os, const node &n)
 {
     std::ios::fmtflags os_flags(os.flags());
 
@@ -206,7 +206,7 @@ std::ostream& operator <<(std::ostream &os, const node &n)
     return os;
 }
 
-auto make_grid(std::ifstream &input) -> grid<uint16_t>
+static auto make_grid(std::ifstream &input) -> grid<uint16_t>
 {
     std::string line;
     grid<uint16_t> g;
@@ -396,7 +396,7 @@ void pathfinder::find_min_path(const node start, const int max_steps)
     }
 }
 
-void draw_color_grid(const pathfinder &p, const int max_steps)
+static void draw_color_grid(const pathfinder &p, const int max_steps)
 {
     using std::cout;
 
@@ -455,6 +455,22 @@ void draw_color_grid(const pathfinder &p, const int max_steps)
     cout << "Could reach " << p.was_visited.size() << " garden plots using up to " << max_steps << " steps.\n";
 }
 
+static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start, int max_steps)
+{
+    unsigned long sum = 0;
+
+    pathfinder p(g);
+
+    p.find_min_path(start, max_steps);
+    sum = p.was_visited.size();
+
+    if (g.at(start.col, start.row) == 'S') {
+        draw_color_grid(p, max_steps);
+    }
+
+    return sum;
+}
+
 int main(int argc, char **argv)
 {
     using namespace std::chrono;
@@ -499,8 +515,6 @@ int main(int argc, char **argv)
     auto g = make_grid(input);
     auto H = g.height(), W = g.width();
 
-    pathfinder p(g);
-
     // find start
     node start{};
     for (pos_t j = 0; j < H; j++) {
@@ -520,18 +534,16 @@ int main(int argc, char **argv)
 
     time_point t1 = steady_clock::now();
 
-    p.find_min_path(start, max_steps);
+    unsigned long dist = count_cells_recursive(g, start, max_steps);
 
     time_point t2 = steady_clock::now();
 
-    if constexpr (g_show_distances) {
-        for (const auto &n : p.was_visited) {
-            const auto [node, met] = n;
-            cout << node << "visited? " << met << ", distance was " << p.dist(node) << "\n";
-        }
+    if (0) {
+        // here just to squelch stupid warning
+        cout << start;
     }
 
-    draw_color_grid(p, max_steps);
+    cout << dist << "\n";
     cout << "time: " << duration<double>(t2 - t1).count() << "\n";
 
     (void) dir_name; // silence clang warning about non-use
