@@ -8,6 +8,7 @@ class Puzzle
   def initialize()
     @symtab = {}
     @values = {}
+    @isreset = false
   end
 
   def assignOutput(result, expression)
@@ -26,6 +27,15 @@ class Puzzle
     return @values.key?(name)
   end
 
+  def reset?
+    @isreset
+  end
+
+  def reset!
+    @values = {}
+    @isreset = true
+  end
+
   def each(&block)
     @symtab.each(&block)
   end
@@ -35,9 +45,15 @@ class Op
   def initialize(p)
     @p = p
     @value = nil
+    @was_reset = false
   end
 
   def evaluate
+    if @p.reset? and not @was_reset
+      @value = nil
+      @was_reset = true
+    end
+
     if @value.nil?
       @value = evaluate_impl
     end
@@ -171,8 +187,10 @@ File.foreach(ARGV.shift || 'input') { |line|
   decode(line.chomp, p)
 }
 
-p.each { |sym, expr|
-  puts "#{sym} -> #{expr.evaluate}"
-}
+val = p.lookup('a').evaluate
+puts "Resetting with b = #{val}"
 
-#puts p.lookup('a').evaluate
+p.reset!
+p.assignOutput('b', Literal.new(p, val))
+
+puts p.lookup('a').evaluate
