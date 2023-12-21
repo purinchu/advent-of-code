@@ -357,7 +357,7 @@ void pathfinder::find_min_path(const node start, const int max_steps)
         decltype(node_distance_compare)
         > to_visit(node_distance_compare);
 
-    if (max_steps % 2 == 0) {
+    if (0 && max_steps % 2 == 0) {
         set_dist(start, 0);
         to_visit.push(start);
     } else {
@@ -398,7 +398,7 @@ void pathfinder::find_min_path(const node start, const int max_steps)
 
         auto cx = cur.col, cy = cur.row;
 
-        int new_dist = dist(cur) + 2; // 2 steps at a time
+        int new_dist = dist(cur) + 1; // 2 steps at a time
         if (new_dist > max_steps) {
             // if we're searching this distance there's nothing shorter left
             was_visited[cur] = true;
@@ -406,7 +406,8 @@ void pathfinder::find_min_path(const node start, const int max_steps)
         }
 
         // Go through all possible directions and new nodes
-        for (const auto &new_dir : neighbor_dirs_for_node()) {
+//      for (const auto &new_dir : neighbor_dirs_for_node()) {
+        for (const auto &new_dir : neighbor_dirs_one_step()) {
             pos_t nx = cx;
             pos_t ny = cy;
             auto [dx, dy] = new_dir;
@@ -417,7 +418,8 @@ void pathfinder::find_min_path(const node start, const int max_steps)
             // we're taking an even number of steps and must move each step,
             // so plan out 2 steps at a time. This checks for that and for
             // staying on the board
-            if (hit_rock_dirs(new_dist, cx, cy, dx, dy)) {
+//          if (hit_rock_dirs(new_dist, cx, cy, dx, dy)) {
+            if (hit_rock(new_dist, nx, ny)) {
                 continue; // can't go through the rocks
             }
 
@@ -567,12 +569,34 @@ static unsigned long count_cells_recursive(
         // break up into visited cells that are <= the given value or those
         // greater.
         int sum_above = std::count_if(p.was_visited.begin(), p.was_visited.end(),
-                [&p, subdivide](const auto &val) { return p.dist(val.first) > subdivide; });
+                [&p, subdivide](const auto &val) {
+                const auto d = p.dist(val.first);
+                return (d % 2 == 0 && d > subdivide);
+                });
         int sum_below = std::count_if(p.was_visited.begin(), p.was_visited.end(),
-                [&p, subdivide](const auto &val) { return p.dist(val.first) <= subdivide; });
+                [&p, subdivide](const auto &val) {
+                const auto d = p.dist(val.first);
+                return (d % 2 == 0 && d <= subdivide);
+                });
 
-        std::cout << sum_above << " plots reachable >" << subdivide << "\n";
-        std::cout << sum_below << " plots reachable <=" << subdivide << "\n";
+        std::cout << "For even parity:\n";
+        std::cout << "\t" << sum_above << " plots reachable >" << subdivide << "\n";
+        std::cout << "\t" << sum_below << " plots reachable <=" << subdivide << "\n";
+
+        sum_above = std::count_if(p.was_visited.begin(), p.was_visited.end(),
+                [&p, subdivide](const auto &val) {
+                const auto d = p.dist(val.first);
+                return (d % 2 == 1 && d > subdivide);
+                });
+        sum_below = std::count_if(p.was_visited.begin(), p.was_visited.end(),
+                [&p, subdivide](const auto &val) {
+                const auto d = p.dist(val.first);
+                return (d % 2 == 1 && d <= subdivide);
+                });
+
+        std::cout << "For odd parity:\n";
+        std::cout << "\t" << sum_above << " plots reachable >" << subdivide << "\n";
+        std::cout << "\t" << sum_below << " plots reachable <=" << subdivide << "\n";
     }
 
     return sum;
