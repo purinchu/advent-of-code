@@ -239,7 +239,20 @@ struct pathfinder
     void find_min_path(const node start, const int max_steps);
 
     // support routines
-    vector<std::pair<int, int>> neighbor_dirs_for_node(const node) const {
+    vector<std::pair<int, int>> neighbor_dirs_one_step() const {
+        static const std::array checkers {
+            -1, 0, 1, 0, 0, -1, 0, 1
+        };
+
+        vector<std::pair<int, int>> dirs;
+        for (size_t i = 0; i < checkers.size() / 2; i++) {
+            dirs.emplace_back(checkers[i * 2], checkers[i * 2 + 1]);
+        }
+
+        return dirs;
+    }
+
+    vector<std::pair<int, int>> neighbor_dirs_for_node() const {
         static const std::array checkers {
             -2, 0,  2, 0 , 0, 2,  0, -2 ,
             -1, 1, -1, -1, 1, 1,  1, -1,
@@ -344,8 +357,25 @@ void pathfinder::find_min_path(const node start, const int max_steps)
         decltype(node_distance_compare)
         > to_visit(node_distance_compare);
 
-    set_dist(start, 0);
-    to_visit.push(start);
+    if (max_steps % 2 == 0) {
+        set_dist(start, 0);
+        to_visit.push(start);
+    } else {
+        // make one step manually and then go by two as normal
+        // note that we can't ever land on the start spot again in this
+        // situation so it shouldn't be part of the visit set!
+
+        for (const auto &new_dir : neighbor_dirs_one_step()) {
+            auto [dx, dy] = new_dir;
+            if (hit_rock(1, start.col + dx, start.row + dy)) {
+                continue;
+            }
+
+            node c{start.col + dx, start.row + dy};
+            set_dist(c, 1);
+            to_visit.push(c);
+        }
+    }
 
     while(!to_visit.empty()) {
         node cur = to_visit.top();
@@ -376,7 +406,7 @@ void pathfinder::find_min_path(const node start, const int max_steps)
         }
 
         // Go through all possible directions and new nodes
-        for (const auto &new_dir : neighbor_dirs_for_node(cur)) {
+        for (const auto &new_dir : neighbor_dirs_for_node()) {
             pos_t nx = cx;
             pos_t ny = cy;
             auto [dx, dy] = new_dir;
@@ -384,9 +414,9 @@ void pathfinder::find_min_path(const node start, const int max_steps)
             nx += dx;
             ny += dy;
 
-            // we're taking an even number of steps and must move each
-            // step, so ignore odd steps and plan out 2 steps at a time
-            // this checks for that and for staying on the board
+            // we're taking an even number of steps and must move each step,
+            // so plan out 2 steps at a time. This checks for that and for
+            // staying on the board
             if (hit_rock_dirs(new_dist, cx, cy, dx, dy)) {
                 continue; // can't go through the rocks
             }
@@ -572,11 +602,6 @@ int main(int argc, char **argv)
 
     if (max_steps > 1024) {
         std::cerr << "Max steps seems too big: " << max_steps << "\n";
-        return 1;
-    }
-
-    if (max_steps % 2 != 0) {
-        std::cerr << "Max steps must be even. Sorry.\n";
         return 1;
     }
 
