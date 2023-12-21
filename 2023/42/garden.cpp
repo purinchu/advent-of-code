@@ -54,6 +54,7 @@ struct node
     enum { normal, end, start } type = normal;
 
     bool operator==(const node& o) const = default;
+    auto operator<=>(const node& o) const = default;
 };
 
 template<>
@@ -407,6 +408,23 @@ void pathfinder::find_min_path(const node start, const int max_steps)
 
         was_visited[cur] = true;
     }
+
+    // before we return, ensure our list of out-of-bounds encounters has
+    // been de-duplicated
+    const auto comp = [](const auto &l, const auto &r) {
+        if (l.first < r.first) {
+            return true;
+        } else if (r.first < l.first) {
+            return false;
+        } else {
+            return l.second < r.second;
+        }
+    };
+
+    std::sort(off_edge.begin(), off_edge.end(), comp);
+    vector<std::pair<node, int>> temp;
+    std::unique_copy(off_edge.begin(), off_edge.end(), back_inserter(temp));
+    std::swap(off_edge, temp);
 }
 
 static void draw_color_grid(const pathfinder &p, const int max_steps)
@@ -484,7 +502,6 @@ static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start, 
 
     // the pathfinder will mark where it went off the board so that we
     // don't have to back-calculate later.
-    // TODO : Remove dup cells.
     for (const auto &oob : p.off_edge) {
         std::cout << "went off edge, could restart at " << oob.first
             << " with " << (max_steps - oob.second) << " steps left.\n";
