@@ -151,7 +151,7 @@ sub build_brick_x($y, $z, $x1, $x2)
     ($x1, $x2) = ($x2, $x1) if $x1 > $x2;
 
     push @bricks, {
-        id => chr(ord('A') + $brick_id),
+        id => chr(ord('A') + ($brick_id % 26)),
         idx => $brick_id,
         x => [$x1, $x2],
         y => [$y, $y],
@@ -172,7 +172,7 @@ sub build_brick_y($x, $z, $y1, $y2)
     ($y1, $y2) = ($y2, $y1) if $y1 > $y2;
 
     push @bricks, {
-        id => chr(ord('A') + $brick_id),
+        id => chr(ord('A') + ($brick_id % 26)),
         idx => $brick_id,
         x => [$x, $x],
         y => [$y1, $y2],
@@ -193,7 +193,7 @@ sub build_brick_z($x, $y, $z1, $z2)
     ($z1, $z2) = ($z2, $z1) if $z1 > $z2;
 
     push @bricks, {
-        id => chr(ord('A') + $brick_id),
+        id => chr(ord('A') + ($brick_id % 26)),
         idx => $brick_id,
         x => [$x, $x],
         y => [$y, $y],
