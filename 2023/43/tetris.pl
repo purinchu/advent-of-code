@@ -22,17 +22,19 @@ use constant G_GRID_SIZE => 20;
 
 # Command-line opts
 my $show_input = 0;
+my $show_grid = 0;
 my $show_grid_dump = 0;
 
 GetOptions(
     "show-input|i"    => \$show_input,
+    "show-grid|g"     => \$show_grid,
     "debug-grid"      => \$show_grid_dump,
 ) or die "Error reading command line options";
 
 # Bricks are stored as 2 different 2-D grids to help me visualize better.
 # Access as $zx_grid[$z]->[$x]
-my @zx_grid = map { [(0) x G_GRID_SIZE] } 1..G_GRID_SIZE;
-my @zy_grid = map { [(0) x G_GRID_SIZE] } 1..G_GRID_SIZE;
+my @zx_grid = map { [('.') x G_GRID_SIZE] } 1..G_GRID_SIZE;
+my @zy_grid = map { [('.') x G_GRID_SIZE] } 1..G_GRID_SIZE;
 
 my @min_grid = (100, 100, 100);
 my @max_grid = (0, 0, 0);
@@ -59,6 +61,10 @@ if ($show_grid_dump) {
     p @zy_grid;
 
     exit 0;
+}
+
+if ($show_grid) {
+    show_grid();
 }
 
 # Code (Aux subs below)
@@ -88,6 +94,7 @@ sub load_input(@lines)
 sub build_brick_x($y, $z, $x1, $x2)
 {
     ($x1, $x2) = ($x2, $x1) if $x1 > $x2;
+
     push @bricks, {
         x => [$x1, $x2],
         y => [$y, $y],
@@ -98,13 +105,15 @@ sub build_brick_x($y, $z, $x1, $x2)
     for my $x ($x1..$x2) {
         $zx_grid[$z]->[$x] = $brick_id;
         $zy_grid[$z]->[$y] = $brick_id;
-        $brick_id++;
     }
+
+    $brick_id++;
 }
 
 sub build_brick_y($x, $z, $y1, $y2)
 {
     ($y1, $y2) = ($y2, $y1) if $y1 > $y2;
+
     push @bricks, {
         x => [$x, $x],
         y => [$y1, $y2],
@@ -115,13 +124,15 @@ sub build_brick_y($x, $z, $y1, $y2)
     for my $y ($y1..$y2) {
         $zx_grid[$z]->[$x] = $brick_id;
         $zy_grid[$z]->[$y] = $brick_id;
-        $brick_id++;
     }
+
+    $brick_id++;
 }
 
 sub build_brick_z($x, $y, $z1, $z2)
 {
     ($z1, $z2) = ($z2, $z1) if $z1 > $z2;
+
     push @bricks, {
         x => [$x, $x],
         y => [$y, $y],
@@ -132,7 +143,62 @@ sub build_brick_z($x, $y, $z1, $z2)
     for my $z ($z1..$z2) {
         $zx_grid[$z]->[$x] = $brick_id;
         $zy_grid[$z]->[$y] = $brick_id;
-        $brick_id++;
+    }
+
+    $brick_id++;
+}
+
+sub show_grid
+{
+    # grid width, 3 for col labels, 2 for 'z' label
+    my $xz_width = ($max_grid[0] - $min_grid[0] + 1) + 3 + 2;
+    my $yz_width = ($max_grid[1] - $min_grid[1] + 1) + 3 + 2;
+
+    # Two more rows on top but those will be implicit
+    my $z_height = ($max_grid[2] - $min_grid[2] + 1);
+
+    my $x_pos = int(($xz_width - 4) / 2);
+    print "\e[${x_pos}G", "x";
+
+    my $y_pos = int($xz_width + 1 + ($yz_width - 4) / 2);
+    print "\e[${y_pos}G", "y";
+    print "\n";
+
+    for my $ch (0..($max_grid[0])) {
+        print "". ($ch % 10);
+    }
+
+    $y_pos = $xz_width + 2;
+    print "\e[${y_pos}G";
+    for my $ch (0..($max_grid[1])) {
+        print "". ($ch % 10);
+    }
+
+    print "\n";
+
+    for (my $row = $max_grid[2]; $row >= 0; $row--) {
+        for (my $x = 0; $x <= $max_grid[0]; $x++) {
+            my $b = $zx_grid[$row]->[$x];
+            print $b if $b eq '.';
+            print chr (ord('A') + $b) unless $b eq '.';
+        }
+
+        print " ", ($row % 10);
+
+        print " z" if $row == int(($max_grid[2] + 1) / 2);
+
+        print "\e[${y_pos}G";
+        for (my $y = 0; $y <= $max_grid[1]; $y++) {
+            my $b = $zy_grid[$row]->[$y];
+            print $b if $b eq '.';
+            print chr (ord('A') + $b) unless $b eq '.';
+        }
+
+        print " ", ($row % 10);
+
+        print " z" if $row == int(($max_grid[2] + 1) / 2);
+
+        print "\n";
     }
 }
 
@@ -143,6 +209,7 @@ A puzzle about falling bricks to be disintegrated.
 Usage: ./tetris.pl [-i] [FILE_NAME]
 
   -i | --show-input -> Echo input back and exit.
+  -g | --show-grid  -> Show puzzle grid after setup, and keep running.
        --debug-grid -> Dump grid data struct.
 
 FILE_NAME specifies the brick snapshot to use, and is 'input' if not specified.
