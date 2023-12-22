@@ -24,11 +24,13 @@ use constant G_GRID_SIZE => 340;
 my $show_input = 0;
 my $show_grid = 0;
 my $show_grid_dump = 0;
+my $dump_settled = 0;
 
 GetOptions(
     "show-input|i"    => \$show_input,
     "show-grid|g"     => \$show_grid,
     "debug-grid"      => \$show_grid_dump,
+    "dump-settled|s"  => \$dump_settled,
 ) or die "Error reading command line options";
 
 # Bricks are stored as 2 different 2-D grids to help me visualize better.
@@ -115,6 +117,10 @@ for my $idx (0..$#bricks) {
 }
 
 say $sum;
+
+if ($dump_settled) {
+    dump_settled_bricks();
+}
 
 # Code (Aux subs below)
 
@@ -277,6 +283,19 @@ sub is_supported($idx)
     return ($zx_ok and $zy_ok);
 }
 
+sub dump_settled_bricks()
+{
+    open my $fh, '>', 'out';
+    foreach my $b (@bricks) {
+        my ($x1, $y1, $z1) = map { $_->[0] } $b->@{qw/x y z/};
+        my ($x2, $y2, $z2) = map { $_->[1] } $b->@{qw/x y z/};
+
+        say $fh "$x1,$y1,$z1~$x2,$y2,$z2";
+    }
+    close $fh;
+    say "Dumped to out";
+}
+
 sub show_grid
 {
     # grid width, 3 for col labels, 2 for 'z' label
@@ -348,6 +367,7 @@ Usage: ./tetris.pl [-i] [FILE_NAME]
   -i | --show-input -> Echo input back and exit.
   -g | --show-grid  -> Show puzzle grid after setup, and keep running.
        --debug-grid -> Dump grid data struct.
+  -s | --dump-settled -> Spit out the settled bricks in the input format.
 
 FILE_NAME specifies the brick snapshot to use, and is 'input' if not specified.
 
