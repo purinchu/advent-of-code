@@ -176,7 +176,7 @@ sub show_grid
 
     print "\n";
 
-    for (my $row = $max_grid[2]; $row >= 0; $row--) {
+    for (my $row = $max_grid[2]; $row > 0; $row--) {
         for (my $x = 0; $x <= $max_grid[0]; $x++) {
             my $b = $zx_grid[$row]->[$x];
             print $b if $b eq '.';
@@ -200,6 +200,15 @@ sub show_grid
 
         print "\n";
     }
+
+    print (('-') x ($max_grid[0] - $min_grid[0] + 1));
+    print ' 0';
+
+    print "\e[${y_pos}G";
+    print (('-') x ($max_grid[1] - $min_grid[1] + 1));
+    print ' 0';
+
+    print "\n";
 }
 
 =head1 SYNOPSIS
