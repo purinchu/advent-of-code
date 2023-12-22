@@ -67,6 +67,8 @@ if ($show_grid) {
     show_grid();
 }
 
+say "Input loaded, ", scalar @bricks, ", settling bricks.";
+
 settle_bricks();
 
 if ($show_grid) {
@@ -74,20 +76,45 @@ if ($show_grid) {
     show_grid();
 }
 
+say "Bricks settled, re-settling for support.";
+
 # do this again to get valid info on what bricks are supporting what, as the
 # support will change as bricks fall from under a supported brick
 delete $_->{supporting} foreach @bricks;
 settle_bricks(); # should be no motion this time
 
+say "Resettling done. Building support map.";
+
+# Build support map. A brick can be disintegrated if its loss would not cause
+# ANY other brick to fall. So for the list of bricks supported, each of those
+# supported bricks would need to have at least one other source of support.
+my %supported_by;
 for my $idx (0..$#bricks) {
     my $b = $bricks[$idx];
     my $spt = $b->{supporting} // [];
+
     my %dedup;
     @dedup{@$spt} = (1) x @$spt;
-    my @supported = keys %dedup;
 
-    say "Brick $idx (aka $b->{id}) supports these bricks: [@supported]";
+    my @supported = keys %dedup;
+    $supported_by{$_}++ foreach @supported;
 }
+
+# Metadata built, do the checks
+
+my $sum = 0;
+for my $idx (0..$#bricks) {
+    my $b = $bricks[$idx];
+    my $spt = $b->{supporting} // [];
+
+    my $removable = all { $supported_by{$_} >= 2 } $spt->@*;
+    $removable //= 1; # can be removed if we're not supporting anyone
+
+#   say "$b->{id}" if $removable;
+    $sum++ if $removable;
+}
+
+say $sum;
 
 # Code (Aux subs below)
 
