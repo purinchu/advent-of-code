@@ -18,7 +18,7 @@ use Getopt::Long qw(:config auto_version auto_help);
 my $input_name = 'input';
 $" = ', '; # For arrays interpolated into strings
 
-use constant G_GRID_SIZE => 20;
+use constant G_GRID_SIZE => 340;
 
 # Command-line opts
 my $show_input = 0;
@@ -36,7 +36,7 @@ GetOptions(
 my @zx_grid = map { [('.') x G_GRID_SIZE] } 1..G_GRID_SIZE;
 my @zy_grid = map { [('.') x G_GRID_SIZE] } 1..G_GRID_SIZE;
 
-my @min_grid = (100, 100, 100);
+my @min_grid = (1000, 1000, 1000);
 my @max_grid = (0, 0, 0);
 
 my @bricks;
