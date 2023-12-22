@@ -69,6 +69,26 @@ if ($show_grid) {
 
 settle_bricks();
 
+if ($show_grid) {
+    say "Post-settling:";
+    show_grid();
+}
+
+# do this again to get valid info on what bricks are supporting what, as the
+# support will change as bricks fall from under a supported brick
+delete $_->{supporting} foreach @bricks;
+settle_bricks(); # should be no motion this time
+
+for my $idx (0..$#bricks) {
+    my $b = $bricks[$idx];
+    my $spt = $b->{supporting} // [];
+    my %dedup;
+    @dedup{@$spt} = (1) x @$spt;
+    my @supported = keys %dedup;
+
+    say "Brick $idx (aka $b->{id}) supports these bricks: [@supported]";
+}
+
 # Code (Aux subs below)
 
 # Aux subs
@@ -165,8 +185,6 @@ sub settle_bricks()
             my ($x2, $y2, $z2) = map { $_->[1] } $b->@{qw/x y z/};
             my ($dx, $dy, $dz) = map { $_ eq $b->{ori} } qw/x y z/;
 
-            say "Dropping brick $b->{id}";
-
             # move block down by 1
             for my $z ($z1..$z2) {
                 for my $x ($x1..$x2) {
@@ -183,7 +201,7 @@ sub settle_bricks()
             $b->{z}->[0]--;
             $b->{z}->[1]--;
 
-            show_grid();
+#           show_grid();
         }
 
         $b->{falling} = 0;
@@ -207,10 +225,27 @@ sub is_supported($idx)
                 grep { $_ ne '.' } $zx_grid[$z1-1]->@[$x1..$x2];
     my $zx_ok = any { !($_->{falling} // 1) } @bricks_below;
 
+    # mark the supporting brick
+    foreach (@bricks_below) {
+        my $b = $bricks[$_->{idx}];
+        $_->{supporting} //= [ ];
+        if (!($_->{falling} // 1)) {
+            push $_->{supporting}->@*, $idx;
+        }
+    }
+
     @bricks_below =
                 map { $bricks[$_] }
                 grep { $_ ne '.' } $zy_grid[$z1-1]->@[$y1..$y2];
     my $zy_ok = any { !($_->{falling} // 1) } @bricks_below;
+
+    foreach (@bricks_below) {
+        my $b = $bricks[$_->{idx}];
+        $_->{supporting} //= [ ];
+        if (!($_->{falling} // 1)) {
+            push $_->{supporting}->@*, $idx;
+        }
+    }
 
     return ($zx_ok and $zy_ok);
 }
