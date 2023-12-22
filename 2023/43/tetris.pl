@@ -67,6 +67,8 @@ if ($show_grid) {
     show_grid();
 }
 
+settle_bricks();
+
 # Code (Aux subs below)
 
 # Aux subs
@@ -96,6 +98,8 @@ sub build_brick_x($y, $z, $x1, $x2)
     ($x1, $x2) = ($x2, $x1) if $x1 > $x2;
 
     push @bricks, {
+        id => chr(ord('A') + $brick_id),
+        idx => $brick_id,
         x => [$x1, $x2],
         y => [$y, $y],
         z => [$z, $z],
@@ -115,6 +119,8 @@ sub build_brick_y($x, $z, $y1, $y2)
     ($y1, $y2) = ($y2, $y1) if $y1 > $y2;
 
     push @bricks, {
+        id => chr(ord('A') + $brick_id),
+        idx => $brick_id,
         x => [$x, $x],
         y => [$y1, $y2],
         z => [$z, $z],
@@ -134,6 +140,8 @@ sub build_brick_z($x, $y, $z1, $z2)
     ($z1, $z2) = ($z2, $z1) if $z1 > $z2;
 
     push @bricks, {
+        id => chr(ord('A') + $brick_id),
+        idx => $brick_id,
         x => [$x, $x],
         y => [$y, $y],
         z => [$z1, $z2],
@@ -148,6 +156,65 @@ sub build_brick_z($x, $y, $z1, $z2)
     $brick_id++;
 }
 
+sub settle_bricks()
+{
+    my @falling_bricks = sort { $a->{z}->[0] <=> $b->{z}->[0] } @bricks;
+    for my $b (@falling_bricks) {
+        while (!is_supported($b->{idx})) {
+            my ($x1, $y1, $z1) = map { $_->[0] } $b->@{qw/x y z/};
+            my ($x2, $y2, $z2) = map { $_->[1] } $b->@{qw/x y z/};
+            my ($dx, $dy, $dz) = map { $_ eq $b->{ori} } qw/x y z/;
+
+            say "Dropping brick $b->{id}";
+
+            # move block down by 1
+            for my $z ($z1..$z2) {
+                for my $x ($x1..$x2) {
+                    $zx_grid[$z - 1]->[$x] = $zx_grid[$z]->[$x];
+                    $zx_grid[$z]->[$x] = '.';
+                }
+
+                for my $y ($y1..$y2) {
+                    $zy_grid[$z - 1]->[$y] = $zy_grid[$z]->[$y];
+                    $zy_grid[$z]->[$y] = '.';
+                }
+            }
+
+            $b->{z}->[0]--;
+            $b->{z}->[1]--;
+
+            show_grid();
+        }
+
+        $b->{falling} = 0;
+    }
+}
+
+sub is_supported($idx)
+{
+    # a brick is supported if even one brick has a brick or ground below it.
+    my $brick = $bricks[$idx];
+    my $ori = $brick->{ori};
+    my ($x1, $y1, $z1) = map { $_->[0] } $brick->@{qw/x y z/};
+    my ($x2, $y2, $z2) = map { $_->[1] } $brick->@{qw/x y z/};
+
+    return 1 if $z1 == 1; # on ground?
+
+    # must have something below in both zx and zy planes, and that
+    # something must have stopped falling itself.
+    my @bricks_below =
+                map { $bricks[$_] }
+                grep { $_ ne '.' } $zx_grid[$z1-1]->@[$x1..$x2];
+    my $zx_ok = any { !($_->{falling} // 1) } @bricks_below;
+
+    @bricks_below =
+                map { $bricks[$_] }
+                grep { $_ ne '.' } $zy_grid[$z1-1]->@[$y1..$y2];
+    my $zy_ok = any { !($_->{falling} // 1) } @bricks_below;
+
+    return ($zx_ok and $zy_ok);
+}
+
 sub show_grid
 {
     # grid width, 3 for col labels, 2 for 'z' label
@@ -156,7 +223,6 @@ sub show_grid
 
     # Two more rows on top but those will be implicit
     my $z_height = ($max_grid[2] - $min_grid[2] + 1);
-
     my $x_pos = int(($xz_width - 4) / 2);
     print "\e[${x_pos}G", "x";
 
