@@ -35,8 +35,8 @@ GetOptions(
 
 # Bricks are stored as 2 different 2-D grids to help me visualize better.
 # Access as $zx_grid[$z]->[$x]
-my @zx_grid = map { [('.') x G_GRID_SIZE] } 1..G_GRID_SIZE;
-my @zy_grid = map { [('.') x G_GRID_SIZE] } 1..G_GRID_SIZE;
+my @zx_grid = map { [map { [] } 1..G_GRID_SIZE] } 1..G_GRID_SIZE;
+my @zy_grid = map { [map { [] } 1..G_GRID_SIZE] } 1..G_GRID_SIZE;
 
 my @min_grid = (1000, 1000, 1000);
 my @max_grid = (0, 0, 0);
@@ -159,9 +159,9 @@ sub build_brick_x($y, $z, $x1, $x2)
         ori => 'x',
     };
 
+    push $zy_grid[$z]->[$y]->@*, $brick_id;
     for my $x ($x1..$x2) {
-        $zx_grid[$z]->[$x] = $brick_id;
-        $zy_grid[$z]->[$y] = $brick_id;
+        push $zx_grid[$z]->[$x]->@*, $brick_id;
     }
 
     $brick_id++;
@@ -180,9 +180,9 @@ sub build_brick_y($x, $z, $y1, $y2)
         ori => 'y',
     };
 
+    push $zx_grid[$z]->[$x]->@*, $brick_id;
     for my $y ($y1..$y2) {
-        $zx_grid[$z]->[$x] = $brick_id;
-        $zy_grid[$z]->[$y] = $brick_id;
+        push $zy_grid[$z]->[$y]->@*, $brick_id;
     }
 
     $brick_id++;
@@ -202,11 +202,20 @@ sub build_brick_z($x, $y, $z1, $z2)
     };
 
     for my $z ($z1..$z2) {
-        $zx_grid[$z]->[$x] = $brick_id;
-        $zy_grid[$z]->[$y] = $brick_id;
+        push $zx_grid[$z]->[$x]->@*, $brick_id;
+        push $zy_grid[$z]->[$y]->@*, $brick_id;
     }
 
     $brick_id++;
+}
+
+sub move_by_index($dest, $src, $idx)
+{
+    my $dest_idx = first { $dest->[$_] == $idx } 0..($dest->@*-1);
+    my $src_idx  = first { $src ->[$_] == $idx } 0..($src->@*-1);
+
+    push $dest->@*, $idx unless $dest_idx;
+    splice $src->@*, $src_idx, 1;
 }
 
 sub settle_bricks()
@@ -221,13 +230,11 @@ sub settle_bricks()
             # move block down by 1
             for my $z ($z1..$z2) {
                 for my $x ($x1..$x2) {
-                    $zx_grid[$z - 1]->[$x] = $zx_grid[$z]->[$x];
-                    $zx_grid[$z]->[$x] = '.';
+                    move_by_index($zx_grid[$z - 1]->[$x], $zx_grid[$z]->[$x], $b->{idx});
                 }
 
                 for my $y ($y1..$y2) {
-                    $zy_grid[$z - 1]->[$y] = $zy_grid[$z]->[$y];
-                    $zy_grid[$z]->[$y] = '.';
+                    move_by_index($zy_grid[$z - 1]->[$y], $zy_grid[$z]->[$y], $b->{idx});
                 }
             }
 
@@ -254,8 +261,8 @@ sub is_supported($idx)
     # must have something below in both zx and zy planes, and that
     # something must have stopped falling itself.
     my @bricks_below =
-                map { $bricks[$_] }
-                grep { $_ ne '.' } $zx_grid[$z1-1]->@[$x1..$x2];
+                map { @bricks[$_->@*] }
+                grep { $_->@* > 0 } $zx_grid[$z1-1]->@[$x1..$x2];
     my $zx_ok = any { !($_->{falling} // 1) } @bricks_below;
 
     # mark the supporting brick
@@ -268,8 +275,8 @@ sub is_supported($idx)
     }
 
     @bricks_below =
-                map { $bricks[$_] }
-                grep { $_ ne '.' } $zy_grid[$z1-1]->@[$y1..$y2];
+                map { @bricks[$_->@*] }
+                grep { $_->@* > 0 } $zy_grid[$z1-1]->@[$y1..$y2];
     my $zy_ok = any { !($_->{falling} // 1) } @bricks_below;
 
     foreach (@bricks_below) {
@@ -312,36 +319,38 @@ sub show_grid
     print "\n";
 
     for my $ch (0..($max_grid[0])) {
-        print "". ($ch % 10);
+        print "\e[92;3m". ($ch % 10);
     }
 
     $y_pos = $xz_width + 2;
     print "\e[${y_pos}G";
     for my $ch (0..($max_grid[1])) {
-        print "". ($ch % 10);
+        print "\e[92;3m". ($ch % 10);
     }
 
-    print "\n";
+    print "\e[0m\n";
 
     for (my $row = $max_grid[2]; $row > 0; $row--) {
         for (my $x = 0; $x <= $max_grid[0]; $x++) {
-            my $b = $zx_grid[$row]->[$x];
-            print $b if $b eq '.';
-            print chr (ord('A') + $b) unless $b eq '.';
+            my $b = ($zx_grid[$row]->[$x]->@* > 1)
+                    ? '?'
+                    : (($zx_grid[$row]->[$x]->[0]) // '.');
+            print $b;
         }
 
-        print " ", ($row % 10);
+        print " \e[92;3m", ($row % 10), "\e[0m";
 
         print " z" if $row == int(($max_grid[2] + 1) / 2);
 
-        print "\e[${y_pos}G";
+        print "\e[${y_pos}G\e[0m";
         for (my $y = 0; $y <= $max_grid[1]; $y++) {
-            my $b = $zy_grid[$row]->[$y];
-            print $b if $b eq '.';
-            print chr (ord('A') + $b) unless $b eq '.';
+            my $b = ($zy_grid[$row]->[$y]->@* > 1)
+                    ? '?'
+                    : (($zy_grid[$row]->[$y]->[0]) // '.');
+            print $b;
         }
 
-        print " ", ($row % 10);
+        print " \e[92;3m", ($row % 10), "\e[0m";
 
         print " z" if $row == int(($max_grid[2] + 1) / 2);
 
@@ -349,13 +358,13 @@ sub show_grid
     }
 
     print (('-') x ($max_grid[0] - $min_grid[0] + 1));
-    print ' 0';
+    print " \e[92;3m0";
 
-    print "\e[${y_pos}G";
+    print "\e[${y_pos}G\e[0m";
     print (('-') x ($max_grid[1] - $min_grid[1] + 1));
-    print ' 0';
+    print " \e[92;3m0";
 
-    print "\n";
+    print "\e[0m\n";
 }
 
 =head1 SYNOPSIS
