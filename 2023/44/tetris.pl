@@ -117,11 +117,6 @@ say $sum;
 
 $sum = 0;
 
-# First remove any nodes not already supported by something
-# so we can use the absence of support as an indication it will fall
-my @fixed_bricks = grep { $supported_by{$_}->@* == 0 } keys %supported_by;
-delete @supported_by{@fixed_bricks};
-
 for my $idx (0..$#bricks) {
     my $spt_by = dclone(\%supported_by);
     my $spts   = dclone(\%supports);
