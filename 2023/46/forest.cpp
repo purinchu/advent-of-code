@@ -54,8 +54,6 @@ struct node
     // vertically for the next move.
     pos_t row = 0;      // start/end node are at any position
     pos_t col = 0;
-    pos_t pred_row = 0;
-    pos_t pred_col = 0;
     enum { normal, end, start } type = normal;
 
     bool operator==(const node& o) const = default;
@@ -194,8 +192,6 @@ static std::ostream& operator <<(std::ostream &os, const node &n)
 
     os << std::setw(2) << (n.col+1) << ","
         << std::setw(2) << (n.row+1) << " "
-        << "via " << std::setw(2) << (n.pred_col+1) << ", "
-        << std::setw(2) << (n.pred_row+1) << " "
         << (n.type == node::start ? "(start)" : "") << " "
         << (n.type == node::end ? "(end)" : "") << " "
         ;
@@ -455,17 +451,17 @@ void pathfinder::find_min_path(const node start)
 
                 // wrong way ?
                 if ((dx == -1 && cell == '>') || (dx == 1 && cell == '<')) {
-                    continue;
+//                  continue;
                 } else if ((dy == -1 && cell == 'v') || (dy == 1 && cell == '^')) {
-                    continue;
+//                  continue;
                 }
 
                 // Mark to be visited
                 if ((dx ==  1 && cell == '>') || (dx == -1 && cell == '<')) {
-                    visit_slopes.emplace_back(ny, nx, cur.row, cur.col);
+                    visit_slopes.emplace_back(ny, nx);
                     continue;
                 } else if ((dy == 1 && cell == 'v') || (dy == -1 && cell == '^')) {
-                    visit_slopes.emplace_back(ny, nx, cur.row, cur.col);
+                    visit_slopes.emplace_back(ny, nx);
                     continue;
                 }
 
@@ -478,7 +474,7 @@ void pathfinder::find_min_path(const node start)
                 // virtual end node elsewhere, but need to visit the last
                 // normal node to have the right distance.
                 if (nx == W - 2 && ny == H - 1) {
-                    visit_slopes.emplace_back(ny, nx, cur.row, cur.col);
+                    visit_slopes.emplace_back(ny, nx);
                     continue;
                 }
 
