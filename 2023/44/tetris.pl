@@ -11,9 +11,7 @@ use experimental 'for_list';
 
 no warnings 'recursion'; # you betcha
 
-use List::Util qw(first all any min max reduce);
-use Data::Printer multiline => 0;
-use JSON;
+use List::Util qw(first all min max reduce);
 use Storable qw(dclone);
 use Getopt::Long qw(:config auto_version auto_help);
 
@@ -26,13 +24,11 @@ use constant G_GRID_SIZE => 340;
 # Command-line opts
 my $show_input = 0;
 my $show_grid = 0;
-my $show_grid_dump = 0;
 my $dump_settled = 0;
 
 GetOptions(
     "show-input|i"    => \$show_input,
     "show-grid|g"     => \$show_grid,
-    "debug-grid"      => \$show_grid_dump,
     "dump-settled|s"  => \$dump_settled,
 ) or die "Error reading command line options";
 
@@ -61,13 +57,6 @@ do {
     say "Loading ", scalar @lines, " lines of input.";
     load_input(@lines);
 };
-
-if ($show_grid_dump) {
-    p @zx_grid;
-    p @zy_grid;
-
-    exit 0;
-}
 
 if ($show_grid) {
     show_grid();
@@ -426,7 +415,6 @@ Usage: ./tetris.pl [-i] [FILE_NAME]
 
   -i | --show-input -> Echo input back and exit.
   -g | --show-grid  -> Show puzzle grid after setup, and keep running.
-       --debug-grid -> Dump grid data struct.
   -s | --dump-settled -> Spit out the settled bricks in the input format.
 
 FILE_NAME specifies the brick snapshot to use, and is 'input' if not specified.
