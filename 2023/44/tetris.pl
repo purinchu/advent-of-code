@@ -255,7 +255,6 @@ sub settle_bricks()
         while (!is_supported($b->{idx})) {
             my ($x1, $y1, $z1) = map { $_->[0] } $b->@{qw/x y z/};
             my ($x2, $y2, $z2) = map { $_->[1] } $b->@{qw/x y z/};
-            my ($dx, $dy, $dz) = map { $_ eq $b->{ori} } qw/x y z/;
 
             # move block down by 1
             for my $z ($z1..$z2) {
