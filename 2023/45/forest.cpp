@@ -13,6 +13,7 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <numeric>
 #include <queue>
 #include <string>
@@ -28,7 +29,7 @@
 
 static const bool g_show_input = false;
 static const bool g_show_final = true;
-static const bool g_show_stats = false;
+static const bool g_show_stats = true;
 static const bool g_show_distances = false;
 
 // common types
@@ -51,6 +52,8 @@ struct node
     // vertically for the next move.
     pos_t row = 0;      // start/end node are at any position
     pos_t col = 0;
+    pos_t pred_row = 0;
+    pos_t pred_col = 0;
     enum { normal, end, start } type = normal;
 
     bool operator==(const node& o) const = default;
@@ -178,7 +181,6 @@ char grid<T>::at(const pos_t col, const pos_t row) const
 }
 //}}}
 
-#if 0
 static std::ostream& operator <<(std::ostream &os, const node &n)
 {
     std::ios::fmtflags os_flags(os.flags());
@@ -190,13 +192,14 @@ static std::ostream& operator <<(std::ostream &os, const node &n)
 
     os << std::setw(2) << (n.col+1) << ","
         << std::setw(2) << (n.row+1) << " "
+        << "via " << std::setw(2) << (n.pred_col+1) << ", "
+        << std::setw(2) << (n.pred_row+1) << " "
         << (n.type == node::start ? "(start)" : "") << " "
         << (n.type == node::end ? "(end)" : "") << " "
         ;
     os.flags(os_flags);
     return os;
 }
-#endif
 
 static auto make_grid(std::ifstream &input) -> grid<uint16_t>
 {
@@ -224,7 +227,7 @@ struct pathfinder
         , W(g.width())
         , H(g.height())
     {
-        distances.assign(W * H * 2, std::numeric_limits<int>::max());
+//      distances.assign(W * H * 2, 0);
     }
 
     void find_min_path(const node start);
@@ -262,23 +265,40 @@ struct pathfinder
     bool hit_rock_dirs(int dist, pos_t cx, pos_t cy, int dx, int dy);
     bool hit_rock(int dist, pos_t nx, pos_t ny);
 
-    node end_node() const { return node { H - 1, W - 2, node::end }; };
+    node end_node() const { return node { .row = H - 1, .col = W - 2, .type = node::end }; };
 
     // distances
-    std::size_t idx_from_node(const node n) const {
-        return (n.row * W) + (n.col);
+//  std::size_t idx_from_node(const node n) const {
+    node idx_from_node(const node n) const {
+        return n;
     };
 
-    int dist (const node n) const { return distances[idx_from_node(n)]; };
+//  int dist (const node n) const { return distances[idx_from_node(n)]; };
+    int dist (const node n) const {
+        const auto it = distances.find(n);
+        if (it != distances.end()) {
+            return it->second;
+        }
+        return 0;
+    };
     void set_dist (const node n, int d) { distances[idx_from_node(n)] = d; };
+    void update_dist (const node n, int d) {
+        const auto idx = idx_from_node(n);
+        if (d > distances[idx]) {
+            distances[idx] = d;
+            num_distance_updates++;
+        }
+    }
 
     // input
     const grid<uint16_t> &m_g;
 
     // problem state
-    vector<int> distances;
+//  vector<int> distances;
+    std::map<node, int> distances;
     vector<std::pair<node, int>> off_edge;
-    unordered_map<node, bool> was_visited;
+//  unordered_map<node, bool> was_visited;
+    std::map<node, bool> was_visited;
     bool m_use_doublesteps = false;
 
     // misc metadata
@@ -345,7 +365,7 @@ bool pathfinder::hit_rock(int dist, pos_t nx, pos_t ny)
 void pathfinder::find_min_path(const node start)
 {
     const auto node_distance_compare = [this](const node &l, const node &r) {
-        return dist(l) > dist(r);
+        return dist(l) < dist(r);
     };
 
     std::priority_queue<
@@ -378,20 +398,29 @@ void pathfinder::find_min_path(const node start)
         cumu_visits += to_visit.size();
 
         if (was_visited.contains(cur)) {
+//          std::cout << "Already visited " << cur << ", dist was " << dist(cur) << "\n";
             // possible depending on the number of candidate nodes in flight
             // to be looked at. candidate set is supposed to be a *set*
+//          continue;
+        }
+
+        if (cur.col == en.col && cur.row == en.row && cur.type == node::normal) {
+            // Visited a 'normal' end node, need to flag the virtual end node
+            // as a zero-distance neighbor to make it available to finish.
+
+            std::cout << "Found an end node, dist = " << dist(cur) << "\n";
+            was_visited[cur] = true;
+
+            update_dist(en, dist(cur));
+            to_visit.push(en);
             continue;
         }
 
         if (cur == en) {
-            // should not move from here, just mark visited and continue
-            std::cout << "Found the end node!\n";
+            // Found the virtual end node, we are well and truly done
             was_visited[cur] = true;
-
-            // give the normal node at some position the same distance
-            node n{cur.row, cur.col};
-            was_visited[n] = true;
-            set_dist(n, dist(cur));
+            std::cout << "Found *the* end node, dist = " << dist(cur) << "\n";
+//          break;
             continue;
         }
 
@@ -399,7 +428,7 @@ void pathfinder::find_min_path(const node start)
 
         auto cx = cur.col, cy = cur.row;
 
-        int new_dist = dist(cur) + 1;
+        int new_dist = dist(cur);
 
         if (m_use_doublesteps) {
             new_dist++; // 2 steps at a time
@@ -454,8 +483,8 @@ void pathfinder::find_min_path(const node start)
                     }
                 }
 
-                std::cout << cx << "," << cy << ", tracing path through " << nx << "," << ny << " " << m_g.at(nx, ny) << " , "
-                    << "paths found = " << next_paths.size() << "\n";
+//              std::cout << cx << "," << cy << ", tracing path through " << nx << "," << ny << " " << m_g.at(nx, ny) << " , "
+//                  << "paths found = " << next_paths.size() << "\n";
 
                 // We're on the board, but are we on a slope?
                 const auto cell = m_g.at(nx, ny);
@@ -469,10 +498,10 @@ void pathfinder::find_min_path(const node start)
 
                 // Mark to be visited
                 if ((dx ==  1 && cell == '>') || (dx == -1 && cell == '<')) {
-                    visit_slopes.emplace_back(ny, nx);
+                    visit_slopes.emplace_back(ny, nx, cur.row, cur.col);
                     continue;
                 } else if ((dy == 1 && cell == 'v') || (dy == -1 && cell == '^')) {
-                    visit_slopes.emplace_back(ny, nx);
+                    visit_slopes.emplace_back(ny, nx, cur.row, cur.col);
                     continue;
                 }
 
@@ -483,9 +512,11 @@ void pathfinder::find_min_path(const node start)
                     continue;
                 }
 
-                // is this the final node?
+                // is this the final node? If so we'll introduce a single
+                // virtual end node elsewhere, but need to visit the last
+                // normal node to have the right distance.
                 if (nx == W - 2 && ny == H - 1) {
-                    visit_slopes.emplace_back(end_node());
+                    visit_slopes.emplace_back(ny, nx, cur.row, cur.col);
                     continue;
                 }
 
@@ -495,7 +526,6 @@ void pathfinder::find_min_path(const node start)
 
                 // otherwise still working through the path...
                 next_paths.emplace_back(nx, ny);
-
             }
 
             // searched all directions, now act
@@ -522,13 +552,8 @@ void pathfinder::find_min_path(const node start)
         }
 
         for (auto n : as_const(visit_slopes)) {
-            if (!was_visited.contains(n)) {
-                if (dist(n) > new_dist) {
-                    set_dist(n, new_dist);
-
-                    num_distance_updates++;
-                }
-
+            if (!was_visited.contains(n) || dist(n) < new_dist) {
+                update_dist(n, new_dist);
                 to_visit.push(n);
                 num_neighbor_added++;
             }
@@ -555,7 +580,7 @@ void pathfinder::find_min_path(const node start)
     std::swap(off_edge, temp);
 }
 
-static void draw_color_grid(const pathfinder &p, const int max_steps)
+static void draw_color_grid(const pathfinder &p)
 {
     using std::cout;
 
@@ -598,7 +623,7 @@ static void draw_color_grid(const pathfinder &p, const int max_steps)
     if constexpr (g_show_stats) {
         cout << "\nstats: ";
         cout << "visits: " << p.num_visits;
-        cout << ", avg visit queue: " << p.cumu_visits / p.num_visits;
+        cout << ", avg visit queue: " << p.cumu_visits / (p.num_visits == 0 ? 1 : p.num_visits);
         cout << ", neighbor_passes: " << p.num_neighbor_passes;
         cout << ", neighbor_added: " << p.num_neighbor_added;
         cout << ", distance_updates: " << p.num_distance_updates;
@@ -609,18 +634,18 @@ static void draw_color_grid(const pathfinder &p, const int max_steps)
     }
 
     cout << "Could reach " << p.was_visited.size() << " garden plots.\n";
-    cout << "The ones highlighted are reachable using up to " << max_steps << " steps.\n";
     cout << "\n";
 }
 
 static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start)
 {
     pathfinder p(g);
-    node end{ g.height() - 1, g.width() - 2, node::end };
+    node end{ g.height() - 1, g.width() - 2 };
+    end.type = node::end;
 
     p.find_min_path(start);
     if (1) {
-        draw_color_grid(p, 80);
+        draw_color_grid(p);
     }
 
     return p.dist(end);
@@ -638,12 +663,7 @@ int main(int argc, char **argv)
                 std::cerr << "Something went wrong with getopt\n";
                 return 1;
             case 'h':
-                cout << "usage: " << argv[0] << " [-n] [-t] filename [max_steps] [subdivision]\n";
-                cout << "  -n  Do not subdivide based on number of steps reached\n";
-                cout << "      This defaults to a value based on input size.\n";
-                cout << "  -t  Trisect output. Outputs 3x3 number of grids possible.\n";
-                cout << "\n";
-                cout << "max_steps defaults to a size based on input if not set.\n";
+                cout << "usage: " << argv[0] << " filename\n";
                 return 0;
         }
     }
@@ -662,7 +682,7 @@ int main(int argc, char **argv)
 
     auto g = make_grid(input);
 
-    draw_color_grid(g, 80);
+//  draw_color_grid(g);
 
     // find start
     node start{ 0, 1 };
