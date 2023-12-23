@@ -23,14 +23,16 @@
 #include <utility>
 #include <vector>
 
+// Linux stuff
+#include <sys/ioctl.h>
+#include <asm/termbits.h>
+
 #include <unistd.h>
 
 // config
 
 static const bool g_show_input = false;
-static const bool g_show_final = true;
-static const bool g_show_stats = true;
-static const bool g_show_distances = false;
+static const bool g_show_stats = false;
 
 // common types
 
@@ -606,10 +608,27 @@ static void draw_color_grid(const pathfinder &p)
     const int H = p.m_g.height();
     const int W = p.m_g.width();
 
+    // preprocess
+    std::map<node, int> flattened_dists;
+    for(const auto &n : as_const(p.was_visited)) {
+        node c {.row = n.first.row, .col = n.first.col};
+        int d = p.dist(n.first);
+        if (flattened_dists[c] < d) {
+            flattened_dists[c] = d;
+        }
+    }
+
+    // terminal size
+    struct winsize wsize {0};
+    pos_t max_width = W;
+    if (ioctl(1, TIOCGWINSZ, &wsize) == 0) {
+        max_width = std::min<pos_t>(wsize.ws_col, W);
+    }
+
     for (pos_t j = 0; j < H; j++) {
-        for (pos_t i = 0; i < W; i++) {
+        for (pos_t i = 0; i < max_width; i++) {
             node n{.row = j, .col = i};
-            if (auto d = p.dist(n); d > 0) {
+            if (auto d = flattened_dists[n]; d > 0) {
                 const auto [cr, cg, cb] = color_cycle[d % color_cycle.size()];
                 cout << "\e[48;2;" << cr << ";" << cg << ";" << cb << "m"
                     << p.m_g.at(i, j);
