@@ -270,15 +270,15 @@ sub is_supported($idx)
                 map { @bricks[$_->@*] }
                 grep { $_->@* > 0 } $zx_grid[$z1-1]->@[$x1..$x2];
     my @zx_bricks = grep { !($_->{falling} // 1) } @bricks_below;
-    $supporting_bricks{$_->{idx}}++ foreach @zx_bricks;
+    $supporting_bricks{$_->{idx}} |= 1 foreach @zx_bricks;
 
     @bricks_below =
                 map { @bricks[$_->@*] }
                 grep { $_->@* > 0 } $zy_grid[$z1-1]->@[$y1..$y2];
     my @zy_bricks = grep { !($_->{falling} // 1) } @bricks_below;
-    $supporting_bricks{$_->{idx}}++ foreach @zy_bricks;
+    $supporting_bricks{$_->{idx}} |= 2 foreach @zy_bricks;
 
-    my @touching = grep { $supporting_bricks{$_} == 2 } keys %supporting_bricks;
+    my @touching = grep { $supporting_bricks{$_} == 3 } keys %supporting_bricks;
     for (@touching) {
         my $b = $bricks[$_];
         $b->{supporting} //= [ ];
