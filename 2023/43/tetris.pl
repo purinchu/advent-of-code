@@ -10,7 +10,7 @@ use autodie;
 use experimental 'for_list';
 
 use List::Util qw(first all any min max reduce);
-use Data::Printer;
+use Data::Printer multiline => 0;
 use JSON;
 use Getopt::Long qw(:config auto_version auto_help);
 
@@ -69,8 +69,8 @@ if ($show_grid) {
     show_grid();
 }
 
-say "Input loaded, ", scalar @bricks, ", settling bricks.";
-say "Grid extent: @min_grid to @max_grid";
+#say "Input loaded, ", scalar @bricks, ", settling bricks.";
+#say "Grid extent: @min_grid to @max_grid";
 
 settle_bricks();
 
@@ -79,14 +79,14 @@ if ($show_grid) {
     show_grid();
 }
 
-say "Bricks settled, re-settling for support.";
+#say "Bricks settled, re-settling for support.";
 
 # do this again to get valid info on what bricks are supporting what, as the
 # support will change as bricks fall from under a supported brick
 delete $_->{supporting} foreach @bricks;
 settle_bricks(); # should be no motion this time
 
-say "Resettling done. Building support map.";
+#say "Resettling done. Building support map.";
 
 # Build support map. A brick can be disintegrated if its loss would not cause
 # ANY other brick to fall. So for the list of bricks supported, each of those
@@ -335,6 +335,7 @@ sub show_grid
             my $b = ($zx_grid[$row]->[$x]->@* > 1)
                     ? '?'
                     : (($zx_grid[$row]->[$x]->[0]) // '.');
+            $b = ($b % 10) unless $b =~ /[?.]/;
             print $b;
         }
 
@@ -347,6 +348,7 @@ sub show_grid
             my $b = ($zy_grid[$row]->[$y]->@* > 1)
                     ? '?'
                     : (($zy_grid[$row]->[$y]->[0]) // '.');
+            $b = ($b % 10) unless $b =~ /[?.]/;
             print $b;
         }
 
