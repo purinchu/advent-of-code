@@ -140,6 +140,10 @@ sub load_input(@lines)
         build_brick_x($y1, $z1, $x1, $x2) if $x1 != $x2;
         build_brick_y($x1, $z1, $y1, $y2) if $y1 != $y2;
         build_brick_z($x1, $y1, $z1, $z2) if $z1 != $z2;
+        if ($x1 == $x2 && $y1 == $y2 && $z1 == $z2) {
+            # of course this could happen
+            build_brick_x($y1, $z1, $x1, $x2);
+        }
 
         $min_grid[0] = min($min_grid[0], $x1, $x2);
         $min_grid[1] = min($min_grid[1], $y1, $y2);
