@@ -70,6 +70,7 @@ if ($show_grid) {
 }
 
 say "Input loaded, ", scalar @bricks, ", settling bricks.";
+say "Grid extent: @min_grid to @max_grid";
 
 settle_bricks();
 
@@ -99,8 +100,11 @@ for my $idx (0..$#bricks) {
     @dedup{@$spt} = (1) x @$spt;
 
     my @supported = keys %dedup;
+#   p @supported;
     $supported_by{$_}++ foreach @supported;
 }
+
+# p %supported_by;
 
 # Metadata built, do the checks
 
@@ -258,36 +262,32 @@ sub is_supported($idx)
 
     return 1 if $z1 == 1; # on ground?
 
+    my %supporting_bricks;
+
     # must have something below in both zx and zy planes, and that
     # something must have stopped falling itself.
     my @bricks_below =
                 map { @bricks[$_->@*] }
                 grep { $_->@* > 0 } $zx_grid[$z1-1]->@[$x1..$x2];
-    my $zx_ok = any { !($_->{falling} // 1) } @bricks_below;
-
-    # mark the supporting brick
-    foreach (@bricks_below) {
-        my $b = $bricks[$_->{idx}];
-        $_->{supporting} //= [ ];
-        if (!($_->{falling} // 1)) {
-            push $_->{supporting}->@*, $idx;
-        }
-    }
+    my @zx_bricks = grep { !($_->{falling} // 1) } @bricks_below;
+    $supporting_bricks{$_->{idx}}++ foreach @zx_bricks;
 
     @bricks_below =
                 map { @bricks[$_->@*] }
                 grep { $_->@* > 0 } $zy_grid[$z1-1]->@[$y1..$y2];
-    my $zy_ok = any { !($_->{falling} // 1) } @bricks_below;
+    my @zy_bricks = grep { !($_->{falling} // 1) } @bricks_below;
+    $supporting_bricks{$_->{idx}}++ foreach @zy_bricks;
 
-    foreach (@bricks_below) {
-        my $b = $bricks[$_->{idx}];
-        $_->{supporting} //= [ ];
-        if (!($_->{falling} // 1)) {
-            push $_->{supporting}->@*, $idx;
+    my @touching = grep { $supporting_bricks{$_} == 2 } keys %supporting_bricks;
+    for (@touching) {
+        my $b = $bricks[$_];
+        $b->{supporting} //= [ ];
+        if (!($b->{falling} // 1)) {
+            push $b->{supporting}->@*, $idx;
         }
     }
 
-    return ($zx_ok and $zy_ok);
+    return @touching > 0;
 }
 
 sub dump_settled_bricks()
