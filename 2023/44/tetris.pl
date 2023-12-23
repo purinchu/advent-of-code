@@ -72,15 +72,6 @@ if ($show_grid) {
     show_grid();
 }
 
-say "Bricks settled, re-settling for support.";
-
-# do this again to get valid info on what bricks are supporting what, as the
-# support will change as bricks fall from under a supported brick
-delete $_->{supporting} foreach @bricks;
-settle_bricks(); # should be no motion this time
-
-say "Resettling done. Building support map.";
-
 if ($dump_settled) {
     dump_settled_bricks();
 }
