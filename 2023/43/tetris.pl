@@ -299,23 +299,23 @@ sub show_grid
     print "\e[${y_pos}G", "y";
     print "\n";
 
-    for my $ch (0..($max_grid[0])) {
+    for my $ch (($min_grid[0])..($max_grid[0])) {
         print "\e[92;3m". ($ch % 10);
     }
 
     $y_pos = $xz_width + 2;
     print "\e[${y_pos}G";
-    for my $ch (0..($max_grid[1])) {
+    for my $ch (($min_grid[1])..($max_grid[1])) {
         print "\e[92;3m". ($ch % 10);
     }
 
     print "\e[0m\n";
 
     for (my $row = $max_grid[2]; $row > 0; $row--) {
-        for (my $x = 0; $x <= $max_grid[0]; $x++) {
+        for (my $x = $min_grid[0]; $x <= $max_grid[0]; $x++) {
             my $b = ($zx_grid[$row]->[$x]->@* > 1)
                     ? '?'
-                    : (($zx_grid[$row]->[$x]->[0]) // '.');
+                    : (($zx_grid[$row]->[$x]->[0]) // "\e[2;36m.\e[0m");
             $b = ($b % 10) unless $b =~ /[?.]/;
             print $b;
         }
@@ -328,7 +328,7 @@ sub show_grid
         for (my $y = 0; $y <= $max_grid[1]; $y++) {
             my $b = ($zy_grid[$row]->[$y]->@* > 1)
                     ? '?'
-                    : (($zy_grid[$row]->[$y]->[0]) // '.');
+                    : (($zy_grid[$row]->[$y]->[0]) // "\e[2;36m.\e[0m");
             $b = ($b % 10) unless $b =~ /[?.]/;
             print $b;
         }
