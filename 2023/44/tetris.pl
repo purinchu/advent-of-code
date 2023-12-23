@@ -276,8 +276,6 @@ sub settle_bricks()
             $b->{z}->[0]--;
             $b->{z}->[1]--;
         }
-
-        $b->{falling} = 0;
     }
 }
 
@@ -298,22 +296,18 @@ sub is_supported($idx)
     my @bricks_below =
                 map { @bricks[$_->@*] }
                 grep { $_->@* > 0 } $zx_grid[$z1-1]->@[$x1..$x2];
-    my @zx_bricks = grep { !($_->{falling} // 1) } @bricks_below;
-    $supporting_bricks{$_->{idx}} |= 1 foreach @zx_bricks;
+    $supporting_bricks{$_->{idx}} |= 1 foreach @bricks_below;
 
     @bricks_below =
                 map { @bricks[$_->@*] }
                 grep { $_->@* > 0 } $zy_grid[$z1-1]->@[$y1..$y2];
-    my @zy_bricks = grep { !($_->{falling} // 1) } @bricks_below;
-    $supporting_bricks{$_->{idx}} |= 2 foreach @zy_bricks;
+    $supporting_bricks{$_->{idx}} |= 2 foreach @bricks_below;
 
     my @touching = grep { $supporting_bricks{$_} == 3 } keys %supporting_bricks;
     for (@touching) {
         my $b = $bricks[$_];
         $b->{supporting} //= [ ];
-        if (!($b->{falling} // 1)) {
-            push $b->{supporting}->@*, $idx;
-        }
+        push $b->{supporting}->@*, $idx;
     }
 
     return @touching > 0;
