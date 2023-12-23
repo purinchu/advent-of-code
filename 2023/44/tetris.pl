@@ -112,14 +112,11 @@ for my $idx (0..$#bricks) {
     my @supported = keys %dedup;
     $supports{$idx} = [@supported];
 
-#   p @supported;
     foreach (@supported) {
         $supported_by{$_} //= [ ];
         push $supported_by{$_}->@*, $idx;
     }
 }
-
-# p %supported_by;
 
 # Metadata built, do the checks
 
@@ -131,7 +128,6 @@ for my $idx (0..$#bricks) {
     my $removable = all { $supported_by{$_}->@* >= 2 } $spt->@*;
     $removable //= 1; # can be removed if we're not supporting anyone
 
-#   say "$b->{id}" if $removable;
     $sum++ if $removable;
 }
 
@@ -155,20 +151,10 @@ for my $idx (0..$#bricks) {
 
 say $sum;
 
-# Code (Aux subs below)
-
 # Aux subs
 
-sub chain_size($idx, $spts, $spt_by)
-{
-    # go through every node where this brick is in spt_by and remove
-    # the brick, and see what breaks.
-
-    return remove_brick_support($idx, $spts, $spt_by);
-}
-
 # recursive
-sub remove_brick_support($idx, $spts, $spt_by)
+sub chain_size($idx, $spts, $spt_by)
 {
     my @falling;
 
@@ -186,7 +172,7 @@ sub remove_brick_support($idx, $spts, $spt_by)
     $sum += @falling;
 
     # if we caused any new bricks to fall, remove them as well
-    $sum += remove_brick_support($_, $spts, $spt_by) foreach @falling;
+    $sum += chain_size($_, $spts, $spt_by) foreach @falling;
 
     return $sum;
 }
@@ -309,8 +295,6 @@ sub settle_bricks()
 
             $b->{z}->[0]--;
             $b->{z}->[1]--;
-
-#           show_grid();
         }
 
         $b->{falling} = 0;
