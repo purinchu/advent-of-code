@@ -10,7 +10,6 @@ use autodie;
 use experimental 'for_list';
 
 use List::Util qw(first all any min max reduce);
-use Data::Printer multiline => 0;
 use JSON;
 use Getopt::Long qw(:config auto_version auto_help);
 
@@ -23,13 +22,11 @@ use constant G_GRID_SIZE => 340;
 # Command-line opts
 my $show_input = 0;
 my $show_grid = 0;
-my $show_grid_dump = 0;
 my $dump_settled = 0;
 
 GetOptions(
     "show-input|i"    => \$show_input,
     "show-grid|g"     => \$show_grid,
-    "debug-grid"      => \$show_grid_dump,
     "dump-settled|s"  => \$dump_settled,
 ) or die "Error reading command line options";
 
@@ -55,39 +52,24 @@ do {
         exit 0;
     }
 
-    say "Loading ", scalar @lines, " lines of input.";
     load_input(@lines);
 };
 
-if ($show_grid_dump) {
-    p @zx_grid;
-    p @zy_grid;
-
-    exit 0;
-}
-
 if ($show_grid) {
     show_grid();
 }
-
-say "Input loaded, ", scalar @bricks, " bricks, settling them.";
-say "Grid extent: @min_grid to @max_grid";
 
 settle_bricks();
-
-if ($show_grid) {
-    say "Post-settling:";
-    show_grid();
-}
-
-say "Bricks settled, re-settling for support.";
 
 # do this again to get valid info on what bricks are supporting what, as the
 # support will change as bricks fall from under a supported brick
 delete $_->{supporting} foreach @bricks;
 settle_bricks(); # should be no motion this time
 
-say "Resettling done. Building support map.";
+if ($show_grid) {
+    say "Post-settling:";
+    show_grid();
+}
 
 # Build support map. A brick can be disintegrated if its loss would not cause
 # ANY other brick to fall. So for the list of bricks supported, each of those
@@ -101,11 +83,8 @@ for my $idx (0..$#bricks) {
     @dedup{@$spt} = (1) x @$spt;
 
     my @supported = keys %dedup;
-#   p @supported;
     $supported_by{$_}++ foreach @supported;
 }
-
-# p %supported_by;
 
 # Metadata built, do the checks
 
@@ -117,7 +96,6 @@ for my $idx (0..$#bricks) {
     my $removable = all { $supported_by{$_} >= 2 } $spt->@*;
     $removable //= 1; # can be removed if we're not supporting anyone
 
-#   say "$b->{id}" if $removable;
     $sum++ if $removable;
 }
 
@@ -249,8 +227,6 @@ sub settle_bricks()
 
             $b->{z}->[0]--;
             $b->{z}->[1]--;
-
-#           show_grid();
         }
 
         $b->{falling} = 0;
@@ -382,7 +358,6 @@ Usage: ./tetris.pl [-i] [FILE_NAME]
 
   -i | --show-input -> Echo input back and exit.
   -g | --show-grid  -> Show puzzle grid after setup, and keep running.
-       --debug-grid -> Dump grid data struct.
   -s | --dump-settled -> Spit out the settled bricks in the input format.
 
 FILE_NAME specifies the brick snapshot to use, and is 'input' if not specified.
