@@ -98,6 +98,7 @@ if ($use_xy) {
     my ($x, $y) = @ARGV[-2..-1];
     # use a rock-centric reference frame to ignore initial position for now
     my $vel = [0, 0, 0, $x, $y, 0];
+    my $hit_confirms = 0;
     my @last_hit;
 
     Y: for (my $i1 = 0; $i1 < @hail; $i1++) {
@@ -106,11 +107,18 @@ if ($use_xy) {
             my $mod1 = [map { Math::BigRat->new($h1->[$_]) - Math::BigRat->new($vel->[$_]) } 0..5];
             my $mod2 = [map { Math::BigRat->new($h2->[$_]) - Math::BigRat->new($vel->[$_]) } 0..5];
 
-            # we permit 0 determinants where because introducing 'z' may
+            # we permit 0 determinants here because introducing 'z' may
             # resolve the parallel lines into a point
             my @hit = in_same_window($mod1, $mod2, ('nil'));
             next Y unless @hit;
-            @last_hit = @hit unless $hit[0] eq 'nil'; # determinants can do this
+
+            # determinants can cause this
+            if ($hit[0] ne 'nil') {
+                @last_hit = @hit unless @last_hit;
+                $hit_confirms++;
+
+                last Y if $hit_confirms > 2;
+            }
         }
     }
 
@@ -131,6 +139,7 @@ if ($use_xy) {
         Y: for (my $y = -25; $y < 200; $y++) {
             # use a rock-centric reference frame to ignore initial position for now
             my $vel = [0, 0, 0, $x, $y, 0];
+            my $hit_confirms = 0;
             my @last_hit;
 
             for (my $i1 = 0; $i1 < @hail; $i1++) {
@@ -139,11 +148,22 @@ if ($use_xy) {
                     my $mod1 = [map { $h1->[$_] - $vel->[$_] } 0..5];
                     my $mod2 = [map { $h2->[$_] - $vel->[$_] } 0..5];
 
-                    # we permit 0 determinants where because introducing 'z' may
+                    # we permit 0 determinants here because introducing 'z' may
                     # resolve the parallel lines into a point
                     my @hit = in_same_window($mod1, $mod2, ('nil'));
                     next Y unless @hit;
-                    @last_hit = @hit unless $hit[0] eq 'nil'; # determinants can do this
+
+                    # determinants can cause this
+                    if ($hit[0] ne 'nil') {
+                        $hit_confirms++ if all { $hit[$_] == $last_hit[$_] } 0..$#last_hit;
+                        @last_hit = @hit;
+
+                        if ($hit_confirms > 2) {
+                            push @$vel, @last_hit;
+                            push @options, $vel;
+                            next Y;
+                        }
+                    }
                 }
             }
 
