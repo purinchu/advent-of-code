@@ -591,10 +591,8 @@ static auto dist_to_end(
         const node dest,
         const node cur
         )
-    -> vector<std::pair<node, node>>
+    -> unsigned
 {
-    vector<std::pair<node, node>> order;
-    unsigned total_dist = 0;
     unsigned max_dist = 0;
     node max_node = cur;
 
@@ -603,7 +601,11 @@ static auto dist_to_end(
     auto it = p.edges.find(cur);
     if (it == p.edges.end()) {
         std::cerr << "Something screwy going on!\n";
-        return order;
+        return 0;
+    }
+
+    if (cur == dest) {
+        return 0;
     }
 
     visited[cur] = true;
@@ -614,35 +616,34 @@ static auto dist_to_end(
     for (const auto &out_edge : out_edge_map) {
         const auto &[out_node, dist] = out_edge;
 
-        if (out_node == dest) {
-            order.emplace_back(cur, dest);
-            visited[cur] = false;
-            return order;
-        }
-
         if (visited[out_node]) {
             continue;
         }
 
-        auto cur_order = dist_to_end(visited, p, dest, out_node);
-        unsigned cur_dist = dist + dist_of_path(p, cur_order);
-        if (cur_dist > total_dist) {
-            total_dist = cur_dist;
-            order = cur_order;
-            max_dist = total_dist - dist;
+#if 0
+        if (out_node == dest && dist > max_dist) {
+            max_node = out_node;
+            max_dist = dist;
+            continue;
+        }
+#endif
+
+        auto cur_dist = dist + dist_to_end(visited, p, dest, out_node);
+//      unsigned cur_dist = dist + dist_of_path(p, cur_order);
+        if (cur_dist > max_dist) {
+            max_dist = cur_dist;
             max_node = out_node;
         }
     }
 
-    // we only get here if the base case is not encountered and we had
-    // to look for the end node recursively.
     visited[cur] = false;
 
-    if (!order.empty()) {
-        order.emplace_back(cur, max_node);
+    node start{.row = 0, .col = 1};
+    if (cur == start) {
+        std::cout << "I think the max dist is " << max_dist << "\n";
     }
 
-    return order;
+    return max_dist;
 }
 
 static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start)
@@ -669,8 +670,9 @@ static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start)
         std::cout << "End node connects to node " << penultimate << "\n";
 
         node start = { .row = 0, .col = 1 };
-        auto order = dist_to_end(visited, p, penultimate, start);
+        auto total_dist = dist_to_end(visited, p, penultimate, start);
 
+#if 0
         std::cout << "Path went:\n";
         for (const auto &path : order) {
             std::cout << "\t" << path.first << " -> " << path.second << " = "
@@ -678,6 +680,7 @@ static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start)
         }
 
         unsigned total_dist = dist_of_path(p, order);
+#endif
         return total_dist + p.edges[en][penultimate];
     }
 
