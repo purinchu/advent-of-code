@@ -26,10 +26,12 @@ $" = ', '; # For arrays interpolated into strings
 my $show_input = 0;
 my $preprocess = 0;
 my $use_xy = 0;
+my $use_arb_prec = 0;
 
 GetOptions(
     "show-input|i"    => \$show_input,
     "preprocess|p"    => \$preprocess,
+    "arb-prec|a"      => \$use_arb_prec,
     "use-xy|x"        => \$use_xy,
 ) or die "Error reading command line options";
 
@@ -68,6 +70,14 @@ if ($preprocess) {
     }
 
     exit 0;
+}
+
+if ($use_arb_prec) {
+    # just make everything a big frac
+    say "Converting input numbers to arbitrary-precision";
+    for my $h (@hail) {
+        $h = [map { Math::BigRat->new($_) } $h->@*];
+    }
 }
 
 # look for intersections in xy-plane first
@@ -113,9 +123,9 @@ if ($use_xy) {
     # recover z directly below. For the full input the intercept points will
     # have degraded accuracy using hardware integers but the x and y will still
     # be OK. Feed back with --use-xy.
-    say "Brute forcing";
+    say "Brute forcing" unless $use_arb_prec;
+    say "Brute forcing (with SLOW ARBITRARY PRECISION)" if $use_arb_prec;
 
-    my $stationary = [(0) x 6]; # no motion, at origin
     for (my $x = -500; $x < 500; $x++) {
         say "x = $x" if ($x % 25 == 0);
         Y: for (my $y = -500; $y < 500; $y++) {
@@ -282,19 +292,22 @@ sub in_same_window($h1, $h2, $ignore_det=0)
 
 A puzzle about falling bricks to be disintegrated.
 
-Usage: ./hail.pl [-i] [FILE_NAME] [x] [y]
+Usage: ./hail.pl [-i] [FILE_NAME] -- [x] [y]
 
   -i | --show-input -> Echo input back and exit.
   -p | --preprocess -> Preprocess velocities and output results.
   -x | --use-xy     -> Directly use x, y velocity to get z (slower func)
+                       (use -- before x and y to avoid confusing Getopt)
+  -a | --arb-prec   -> Use slow-but-accurate search the whole time.
 
 FILE_NAME specifies the hail info to use, and is 'input' if not specified.
 
 NOTE on --use-xy: Use without --use-xy first to get the x and v velocity, you'll
 see a message like
-    "Last hit for 0, 0, 0, 31, 41, 0 was 229...."
+    "x, y: -3, 1"
 
-In this case "31" and "41" are the values to use for x and y velocity respectively.
+In this case "-3" and "1" are the values to use for x and y velocity
+respectively. Do *NOT* use the "x_int" or "y_int" output.
 
 If you feed this back into the program with --use-xy, it will calculate the matching
 z positions using a **much slower** arbitrary-precision math library. If successful
