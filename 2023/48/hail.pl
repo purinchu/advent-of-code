@@ -290,7 +290,7 @@ sub in_same_window($h1, $h2, $ignore_det=0)
 
 =head1 SYNOPSIS
 
-A puzzle about falling bricks to be disintegrated.
+A puzzle about disintegrating hailstones.
 
 Usage: ./hail.pl [-i] [FILE_NAME] -- [x] [y]
 
