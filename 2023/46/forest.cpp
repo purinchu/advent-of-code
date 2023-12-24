@@ -1,4 +1,4 @@
-// AoC 2023 - Puzzle 45
+// AoC 2023 - Puzzle 46
 //
 // Grid stuff
 
@@ -32,7 +32,9 @@
 // config
 
 static const bool g_show_input = false;
+static const bool g_draw_grid = false;
 static const bool g_show_stats = false;
+static const bool g_dump_edges = false;
 
 // common types
 
@@ -243,21 +245,6 @@ struct pathfinder
         return dirs;
     }
 
-    vector<std::pair<int, int>> neighbor_dirs_for_node() const {
-        static const std::array checkers {
-            -2, 0,  2, 0 , 0, 2,  0, -2 ,
-            -1, 1, -1, -1, 1, 1,  1, -1,
-            0, 0  // go away and back is valid
-        };
-
-        vector<std::pair<int, int>> dirs;
-        for (size_t i = 0; i < checkers.size() / 2; i++) {
-            dirs.emplace_back(checkers[i * 2], checkers[i * 2 + 1]);
-        }
-
-        return dirs;
-    }
-
     bool hit_rock(pos_t nx, pos_t ny);
 
     node end_node() const { return node { .row = H - 1, .col = W - 2 }; };
@@ -279,14 +266,6 @@ struct pathfinder
         }
         return 0;
     };
-    void set_dist (const node n, int d) { distances[idx_from_node(n)] = d; };
-    void update_dist (const node n, int d) {
-        const auto idx = idx_from_node(n);
-        if (d > distances[idx]) {
-            distances[idx] = d;
-            num_distance_updates++;
-        }
-    }
 
     // input
     const grid<uint16_t> &m_g;
@@ -319,7 +298,6 @@ void pathfinder::find_intersections(const node start)
 {
     vector<std::tuple<node, int, int>> to_visit;
 
-    set_dist(start, 0);
     to_visit.emplace_back(start, 0, 1); // headed south
 
     const node en = end_node();
@@ -331,8 +309,6 @@ void pathfinder::find_intersections(const node start)
     while(!to_visit.empty()) {
         auto [cur, last_dx, last_dy] = to_visit[0];
         to_visit.erase(to_visit.begin());
-
-//      std::cout << "Visiting " << cur << ", heading " << last_dx << "," << last_dy << "\n";
 
         // each visit needs to reach out to all possible nodes reachable in one
         // move from here and mark those neighbors to be visited as
@@ -398,17 +374,10 @@ void pathfinder::find_intersections(const node start)
                     continue; // can't go through the rocks
                 }
 
-//              std::cout << "At " << (cx + 1) << "," << (cy + 1) << ", "
-//                  << "considering " << (nx + 1) << "," << (ny + 1)
-//                  << ", last_dx=" << last_dx << ", last_dy=" << last_dy << "\n";
-
                 // would this cause us to double back?
                 if (dx == -last_dx && dy == -last_dy) {
                     continue;
                 }
-
-//              std::cout << "At " << (cx + 1) << "," << (cy + 1) << ", "
-//                  << "considering " << (nx + 1) << "," << (ny + 1) << "\n";
 
                 // is this the final node? If so we'll introduce a single
                 // virtual end node elsewhere, but need to visit the last
@@ -431,10 +400,8 @@ void pathfinder::find_intersections(const node start)
             }
 
             if (next_paths.size() > 1 && visit_slopes.empty()) {
-//              std::cout << "Found an intersection at " << (cx + 1) << "," << (cy + 1) << "\n";
                 node intersection{cy, cx};
                 if (was_visited[intersection]) {
-//                  std::cout << "\tAlready visited!\n";
                     break;
                 }
 
@@ -450,9 +417,6 @@ void pathfinder::find_intersections(const node start)
                 for (const auto &next : as_const(next_paths)) {
                     const auto [nx, ny] = next;
 
-//                  std::cout << "Sending a feeler from " << (cx +1) << "," << (cy+1) <<
-//                      " with dx/dy= " << (nx - cx) << "," << (ny-cy) << "\n";
-
                     // send a feeler in each open direction
                     visit_slopes.emplace_back(node{cy, cx}, nx - cx, ny - cy);
                 }
@@ -464,29 +428,14 @@ void pathfinder::find_intersections(const node start)
                 last_dy = ny - cy;
                 cx = nx;
                 cy = ny;
-//              std::cout << "Moving to " << (cx+1) << "," << (cy+1)
-//                  << ", last_dx now " << last_dx << ", last_dy now "
-//                  << last_dy << "\n";
             }
 
             new_dist++;
         }
 
-        for (auto n : as_const(visit_slopes)) {
-            const auto [node, last_dx, last_dy] = n;
-            to_visit.push_back(n);
-        }
+        std::copy(visit_slopes.begin(), visit_slopes.end(), back_inserter(to_visit));
 
         was_visited[cur] = true;
-    }
-
-    for (const auto &edge_from : edges) {
-        const auto &[src, edges_out] = edge_from;
-        for (const auto &edge_out : edges_out) {
-            const auto &[dest, dist] = edge_out;
-            std::cout << "Found edge from " << src << " to " << dest
-                << " of distance " << dist << "\n";
-        }
     }
 }
 
@@ -518,14 +467,6 @@ static void draw_color_grid(const pathfinder &p)
 
     // preprocess
     std::map<node, int> flattened_dists;
-    for(const auto &n : as_const(p.was_visited)) {
-        node c {.row = n.first.row, .col = n.first.col};
-        int d = p.dist(n.first);
-        if (flattened_dists[c] < d) {
-            flattened_dists[c] = d;
-        }
-    }
-
     for (const auto &edge_from : p.edges) {
         const auto &[src, edges_out] = edge_from;
         flattened_dists[src] = edges_out.size();
@@ -573,25 +514,12 @@ static void draw_color_grid(const pathfinder &p)
     cout << "\n";
 }
 
-static unsigned dist_of_path(const pathfinder &p, vector<std::pair<node, node>> order_path)
-{
-    unsigned total_dist = 0;
-
-    for (const auto &edge : order_path) {
-        const auto &[l, r] = edge;
-        total_dist += p.edges.at(l).at(r);
-    }
-
-    return total_dist;
-}
-
-static auto dist_to_end(
+static unsigned dist_to_end(
         std::unordered_map<node, bool> &visited,
         const pathfinder &p,
         const node dest,
         const node cur
         )
-    -> unsigned
 {
     unsigned max_dist = 0;
     node max_node = cur;
@@ -620,16 +548,7 @@ static auto dist_to_end(
             continue;
         }
 
-#if 0
-        if (out_node == dest && dist > max_dist) {
-            max_node = out_node;
-            max_dist = dist;
-            continue;
-        }
-#endif
-
         auto cur_dist = dist + dist_to_end(visited, p, dest, out_node);
-//      unsigned cur_dist = dist + dist_of_path(p, cur_order);
         if (cur_dist > max_dist) {
             max_dist = cur_dist;
             max_node = out_node;
@@ -638,22 +557,16 @@ static auto dist_to_end(
 
     visited[cur] = false;
 
-    node start{.row = 0, .col = 1};
-    if (cur == start) {
-        std::cout << "I think the max dist is " << max_dist << "\n";
-    }
-
     return max_dist;
 }
 
 static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start)
 {
     pathfinder p(g);
-    node end{ g.height() - 1, g.width() - 2 };
-    end.type = node::end;
 
     p.find_intersections(start);
-    if (1) {
+
+    if (g_draw_grid) {
         draw_color_grid(p);
     }
 
@@ -661,39 +574,32 @@ static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start)
     // all possible paths through the graph.
 
     node en = p.end_node();
-
     std::unordered_map<node, bool> visited;
 
     // speedup by looking for the penultimate node instead
+    unsigned total_dist;
+
     if (p.edges[en].size() == 1) {
         node penultimate = p.edges[en].begin()->first;
-        std::cout << "End node connects to node " << penultimate << "\n";
 
-        node start = { .row = 0, .col = 1 };
-        auto total_dist = dist_to_end(visited, p, penultimate, start);
-
-#if 0
-        std::cout << "Path went:\n";
-        for (const auto &path : order) {
-            std::cout << "\t" << path.first << " -> " << path.second << " = "
-                << p.edges.at(path.first).at(path.second) << ".\n";
-        }
-
-        unsigned total_dist = dist_of_path(p, order);
-#endif
-        return total_dist + p.edges[en][penultimate];
+        total_dist = dist_to_end(visited, p, penultimate, start);
+        total_dist += p.edges[en][penultimate];
+    } else {
+        total_dist = dist_to_end(visited, p, en, start);
     }
 
-    if constexpr (0) {
+    if constexpr (g_dump_edges) {
         for (const auto &edge : as_const(p.edges)) {
             const auto &[src, destmap] = edge;
             for (const auto &edge_end : destmap) {
                 const auto &[dest, dist] = edge_end;
+                std::cout << "Edge from " << src << " to "
+                    << dest << ", distance = " << dist << "\n";
             }
         }
     }
 
-    return p.dist(end);
+    return total_dist;
 }
 
 int main(int argc, char **argv)
