@@ -9,7 +9,7 @@ FILE_INPUT  := input
 
 $(TARGET): $(TARGET).cpp Makefile
 #	$(CXX) -o $@ -stdlib=libc++ -fsanitize=address,undefined -std=c++20 -Wall -W -Wextra -O2 -pipe -march=native $<
-	$(CXX) -o $@ -fsanitize=address,undefined -std=c++20 -Wall -W -Wextra -Og -fno-omit-frame-pointer -pipe -march=native $<
+	$(CXX) -o $@ -fsanitize=address,undefined -std=c++20 -Wall -W -Wextra -ggdb -Og -fno-omit-frame-pointer -pipe -march=native $<
 #	$(CXX) -o $@ -std=c++20 -Wall -W -Wextra -O3 -pipe -march=native $<
 
 test: $(TARGET) $(FILE_SAMPLE)

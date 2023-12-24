@@ -1,4 +1,4 @@
-// AoC 2023 - Puzzle 46
+// AoC 2023 - Puzzle 45
 //
 // Grid stuff
 
@@ -227,7 +227,7 @@ struct pathfinder
     {
     }
 
-    void find_min_path(const node start);
+    void find_intersections(const node start);
 
     // support routines
     vector<std::pair<int, int>> neighbor_dirs_one_step() const {
@@ -258,12 +258,20 @@ struct pathfinder
         return dirs;
     }
 
-    bool hit_rock_dirs(int dist, pos_t cx, pos_t cy, int dx, int dy);
-    bool hit_rock(int dist, pos_t nx, pos_t ny);
+    bool hit_rock(pos_t nx, pos_t ny);
 
-    node end_node() const { return node { .row = H - 1, .col = W - 2, .type = node::end }; };
+    node end_node() const { return node { .row = H - 1, .col = W - 2 }; };
+
+    void add_edge(const node n1, const node n2, int dist) {
+        edges[n1][n2] = dist;
+        edges[n2][n1] = dist;
+    }
 
     // distances
+    node idx_from_node(const node n) const {
+        return n;
+    };
+
     int dist (const node n) const {
         const auto it = distances.find(n);
         if (it != distances.end()) {
@@ -271,10 +279,11 @@ struct pathfinder
         }
         return 0;
     };
-    void set_dist (const node n, int d) { distances[n] = d; };
+    void set_dist (const node n, int d) { distances[idx_from_node(n)] = d; };
     void update_dist (const node n, int d) {
-        if (d > distances[n]) {
-            distances[n] = d;
+        const auto idx = idx_from_node(n);
+        if (d > distances[idx]) {
+            distances[idx] = d;
             num_distance_updates++;
         }
     }
@@ -284,8 +293,8 @@ struct pathfinder
 
     // problem state
     std::map<node, int> distances;
-    vector<std::pair<node, int>> off_edge;
     std::map<node, bool> was_visited;
+    std::map<node, std::map<node, int>> edges;
 
     // misc metadata
     int W;
@@ -297,50 +306,8 @@ struct pathfinder
     uint_fast64_t num_neighbor_added = 0, num_distance_updates = 0;
 };
 
-bool pathfinder::hit_rock_dirs(int dist, pos_t cx, pos_t cy, int dx, int dy)
+bool pathfinder::hit_rock(pos_t nx, pos_t ny)
 {
-    if (!dx && !dy) {
-        return false;
-    }
-
-    // just go through all the directions...
-    if        (dx ==  0 && dy ==  2) {
-        return hit_rock(dist, cx, cy + 1) || hit_rock(dist, cx, cy + 2);
-    } else if (dx ==  0 && dy == -2) {
-        return hit_rock(dist, cx, cy - 1) || hit_rock(dist, cx, cy - 2);
-    } else if (dx ==  2 && dy ==  0) {
-        return hit_rock(dist, cx + 1, cy) || hit_rock(dist, cx + 2, cy);
-    } else if (dx == -2 && dy ==  0) {
-        return hit_rock(dist, cx - 1, cy) || hit_rock(dist, cx - 2, cy);
-    } else if (dx ==  1 && dy ==  1) {
-        return hit_rock(dist, cx + 1, cy + 1) || (hit_rock(dist, cx + 1, cy) && hit_rock(dist, cx, cy + 1));
-    } else if (dx ==  1 && dy == -1) {
-        return hit_rock(dist, cx + 1, cy - 1) || (hit_rock(dist, cx + 1, cy) && hit_rock(dist, cx, cy - 1));
-    } else if (dx == -1 && dy ==  1) {
-        return hit_rock(dist, cx - 1, cy + 1) || (hit_rock(dist, cx - 1, cy) && hit_rock(dist, cx, cy + 1));
-    } else if (dx == -1 && dy == -1) {
-        return hit_rock(dist, cx - 1, cy - 1) || (hit_rock(dist, cx - 1, cy) && hit_rock(dist, cx, cy - 1));
-    }
-
-    return true;
-}
-
-bool pathfinder::hit_rock(int dist, pos_t nx, pos_t ny)
-{
-    // if we go off board, record where it would have happened
-    if (nx >= W) {
-        off_edge.emplace_back(node{.row = ny, .col = nx - W}, dist);
-    }
-    if (ny >= H) {
-        off_edge.emplace_back(node{.row = ny - H, .col = nx}, dist);
-    }
-    if (nx < 0) {
-        off_edge.emplace_back(node{.row = ny, .col = nx + W}, dist);
-    }
-    if (ny < 0) {
-        off_edge.emplace_back(node{.row = ny + H, .col = nx}, dist);
-    }
-
     if (nx < 0 || ny < 0 || nx >= W || ny >= H) {
         return true;
     }
@@ -348,57 +315,44 @@ bool pathfinder::hit_rock(int dist, pos_t nx, pos_t ny)
     return (m_g.at(nx, ny) == '#');
 }
 
-void pathfinder::find_min_path(const node start)
+void pathfinder::find_intersections(const node start)
 {
-    const auto node_distance_compare = [this](const node &l, const node &r) {
-        return dist(l) < dist(r);
-    };
+    vector<std::tuple<node, int, int>> to_visit;
 
-    std::priority_queue<
-        node, vector<node>,
-        decltype(node_distance_compare)
-        > to_visit(node_distance_compare);
-
-    // can happen if steps are even or double-stepping is not in use
-    if (to_visit.empty()) {
-        set_dist(start, 0);
-        to_visit.push(start);
-    }
+    set_dist(start, 0);
+    to_visit.emplace_back(start, 0, 1); // headed south
 
     const node en = end_node();
 
     // NOTE: For this puzzle, each "node visit" is the straight-line path
     // from the node to the exit, or a steep slope. No backtracking because
     // we must only touch a path once.
-    int last_dx = 0, last_dy = 1; // start by heading south
 
     while(!to_visit.empty()) {
-        node cur = to_visit.top();
-        to_visit.pop();
+        auto [cur, last_dx, last_dy] = to_visit[0];
+        to_visit.erase(to_visit.begin());
+
+//      std::cout << "Visiting " << cur << ", heading " << last_dx << "," << last_dy << "\n";
 
         // each visit needs to reach out to all possible nodes reachable in one
         // move from here and mark those neighbors to be visited as
         // appropriate.
 
-        num_visits++;
-        cumu_visits += to_visit.size();
-
-        if (cur.col == en.col && cur.row == en.row && cur.type == node::normal) {
+        if (cur.col == en.col && cur.row == en.row) {
             // Visited a 'normal' end node, need to flag the virtual end node
             // as a zero-distance neighbor to make it available to finish.
 
-            std::cout << "Found an end node, dist = " << dist(cur) << "\n";
+            if (0) {
+                std::cout << "\"" << (cur.col+1) << "," << (cur.row+1) << "\" [label=END shape=octagon]\n";
+            }
             was_visited[cur] = true;
-
-            update_dist(en, dist(cur));
-            to_visit.push(en);
             continue;
-        }
-
-        if (cur == en) {
-            // Found the virtual end node, we are well and truly done
+        } else if (cur.col == 1 && cur.row == 0 && last_dy != 1) {
+            if (0) {
+                std::cout << "\"" << (cur.col+1) << "," << (cur.row+1) << "\" [label=START shape=octagon]\n";
+            }
+            // made it back to start?
             was_visited[cur] = true;
-            std::cout << "Found *the* end node, dist = " << dist(cur) << "\n";
             continue;
         }
 
@@ -406,27 +360,25 @@ void pathfinder::find_min_path(const node start)
 
         auto cx = cur.col, cy = cur.row;
 
-        int new_dist = dist(cur);
-
-        // setup initial dir
+        // ensure we're in middle of intersection
         if (cur != start) {
-            const auto start_tile = m_g.at(cur.col, cur.row);
-            if (start_tile == '>') {
-                last_dx = 1; last_dy = 0;
-            } else if (start_tile == '<') {
-                last_dx = -1; last_dy = 0;
-            } else if (start_tile == 'v') {
-                last_dx = 0; last_dy = 1;
-            } else if (start_tile == '^') {
-                last_dx = 0; last_dy = -1;
-            } else {
+            if (m_g.at(cx + 1, cy) == '.' || m_g.at(cx - 1, cy) == '.' ||
+                m_g.at(cx, cy + 1) == '.' || m_g.at(cx, cy - 1) == '.')
+            {
+                // not an intersection
                 std::cerr << "Ended up starting a node not from the start, end or slope!\n";
-                std::cerr << " at " << cur.col << "," << cur.row << " tile is " << start_tile << "\n";
+                std::cerr << " at " << cur.col << "," << cur.row << "\n";
                 throw "uh oh";
             }
         }
 
-        vector<node> visit_slopes; // otherwise what slopes to visit?
+        // Make at least one step in the new direction
+        cx += last_dx;
+        cy += last_dy;
+        int new_dist = 1;
+
+        // used to keep moving until we find another node to visit
+        vector<std::tuple<node, int, int>> visit_slopes;
 
         while(visit_slopes.empty()) {
             // Go through all possible directions and find the next step in
@@ -442,39 +394,28 @@ void pathfinder::find_min_path(const node start)
                 nx += dx;
                 ny += dy;
 
-                if (hit_rock(new_dist, nx, ny)) {
+                if (hit_rock(nx, ny)) {
                     continue; // can't go through the rocks
                 }
 
-                // We're on the board, but are we on a slope?
-                const auto cell = m_g.at(nx, ny);
-
-                // wrong way ?
-                if ((dx == -1 && cell == '>') || (dx == 1 && cell == '<')) {
-//                  continue;
-                } else if ((dy == -1 && cell == 'v') || (dy == 1 && cell == '^')) {
-//                  continue;
-                }
-
-                // Mark to be visited
-                if ((dx ==  1 && cell == '>') || (dx == -1 && cell == '<')) {
-                    visit_slopes.emplace_back(ny, nx);
-                    continue;
-                } else if ((dy == 1 && cell == 'v') || (dy == -1 && cell == '^')) {
-                    visit_slopes.emplace_back(ny, nx);
-                    continue;
-                }
+//              std::cout << "At " << (cx + 1) << "," << (cy + 1) << ", "
+//                  << "considering " << (nx + 1) << "," << (ny + 1)
+//                  << ", last_dx=" << last_dx << ", last_dy=" << last_dy << "\n";
 
                 // would this cause us to double back?
                 if (dx == -last_dx && dy == -last_dy) {
                     continue;
                 }
 
+//              std::cout << "At " << (cx + 1) << "," << (cy + 1) << ", "
+//                  << "considering " << (nx + 1) << "," << (ny + 1) << "\n";
+
                 // is this the final node? If so we'll introduce a single
                 // virtual end node elsewhere, but need to visit the last
                 // normal node to have the right distance.
                 if (nx == W - 2 && ny == H - 1) {
-                    visit_slopes.emplace_back(ny, nx);
+                    visit_slopes.emplace_back(end_node(), last_dx, last_dy);
+                    add_edge(cur, end_node(), new_dist + 1);
                     continue;
                 }
 
@@ -485,53 +426,68 @@ void pathfinder::find_min_path(const node start)
             // searched all directions, now act
 
             if (next_paths.empty() && visit_slopes.empty()) {
-                std::cerr << "Not sure where to go!\n";
-                throw "uh oh!";
+                std::cerr << "Dead end for " << cur << "\n";
+                break;
             }
 
             if (next_paths.size() > 1 && visit_slopes.empty()) {
-                std::cerr << "Found an unexpected branching path at " << cx << "," << cy << "\n";
-                throw "Uh oh!";
+//              std::cout << "Found an intersection at " << (cx + 1) << "," << (cy + 1) << "\n";
+                node intersection{cy, cx};
+                if (was_visited[intersection]) {
+//                  std::cout << "\tAlready visited!\n";
+                    break;
+                }
+
+                if(0) {
+                    std::cout << "\"" << (cur.col+1) << "," << (cur.row+1)
+                        << "\"--\"" // bi-directional edge
+                        << (intersection.col+1) << "," << (intersection.row+1)
+                        << "\" [label=" << (new_dist) << "]\n";
+                }
+
+                add_edge(cur, intersection, new_dist);
+
+                for (const auto &next : as_const(next_paths)) {
+                    const auto [nx, ny] = next;
+
+//                  std::cout << "Sending a feeler from " << (cx +1) << "," << (cy+1) <<
+//                      " with dx/dy= " << (nx - cx) << "," << (ny-cy) << "\n";
+
+                    // send a feeler in each open direction
+                    visit_slopes.emplace_back(node{cy, cx}, nx - cx, ny - cy);
+                }
             }
 
-            if (visit_slopes.empty()) {
+            if (next_paths.size() == 1) {
                 const auto [nx, ny] = next_paths[0];
                 last_dx = nx - cx;
                 last_dy = ny - cy;
                 cx = nx;
                 cy = ny;
+//              std::cout << "Moving to " << (cx+1) << "," << (cy+1)
+//                  << ", last_dx now " << last_dx << ", last_dy now "
+//                  << last_dy << "\n";
             }
 
             new_dist++;
         }
 
         for (auto n : as_const(visit_slopes)) {
-            if (!was_visited.contains(n) || dist(n) < new_dist) {
-                update_dist(n, new_dist);
-                to_visit.push(n);
-                num_neighbor_added++;
-            }
+            const auto [node, last_dx, last_dy] = n;
+            to_visit.push_back(n);
         }
 
         was_visited[cur] = true;
     }
 
-    // before we return, ensure our list of out-of-bounds encounters has
-    // been de-duplicated
-    const auto comp = [](const auto &l, const auto &r) {
-        if (l.second < r.second) {
-            return true;
-        } else if (r.second < l.second) {
-            return false;
-        } else {
-            return l.first < r.first;
+    for (const auto &edge_from : edges) {
+        const auto &[src, edges_out] = edge_from;
+        for (const auto &edge_out : edges_out) {
+            const auto &[dest, dist] = edge_out;
+            std::cout << "Found edge from " << src << " to " << dest
+                << " of distance " << dist << "\n";
         }
-    };
-
-    std::sort(off_edge.begin(), off_edge.end(), comp);
-    vector<std::pair<node, int>> temp;
-    std::unique_copy(off_edge.begin(), off_edge.end(), back_inserter(temp));
-    std::swap(off_edge, temp);
+    }
 }
 
 static void draw_color_grid(const pathfinder &p)
@@ -570,8 +526,17 @@ static void draw_color_grid(const pathfinder &p)
         }
     }
 
+    for (const auto &edge_from : p.edges) {
+        const auto &[src, edges_out] = edge_from;
+        flattened_dists[src] = edges_out.size();
+        for (const auto &edge_out : edges_out) {
+            const auto &[dest, dist] = edge_out;
+            (void) flattened_dists[dest];
+        }
+    }
+
     // terminal size
-    struct winsize wsize {0};
+    struct winsize wsize = {};
     pos_t max_width = W;
     if (ioctl(1, TIOCGWINSZ, &wsize) == 0) {
         max_width = std::min<pos_t>(wsize.ws_col, W);
@@ -608,15 +573,121 @@ static void draw_color_grid(const pathfinder &p)
     cout << "\n";
 }
 
+static unsigned dist_of_path(const pathfinder &p, vector<std::pair<node, node>> order_path)
+{
+    unsigned total_dist = 0;
+
+    for (const auto &edge : order_path) {
+        const auto &[l, r] = edge;
+        total_dist += p.edges.at(l).at(r);
+    }
+
+    return total_dist;
+}
+
+static auto dist_to_end(
+        std::unordered_map<node, bool> &visited,
+        const pathfinder &p,
+        const node dest,
+        const node cur
+        )
+    -> vector<std::pair<node, node>>
+{
+    vector<std::pair<node, node>> order;
+    unsigned total_dist = 0;
+    unsigned max_dist = 0;
+    node max_node = cur;
+
+    // check with all children for best path to the end
+
+    auto it = p.edges.find(cur);
+    if (it == p.edges.end()) {
+        std::cerr << "Something screwy going on!\n";
+        return order;
+    }
+
+    visited[cur] = true;
+
+    // it->first is cur, it->second is the map of outbound edges
+    const auto &[src_node, out_edge_map] = *it;
+
+    for (const auto &out_edge : out_edge_map) {
+        const auto &[out_node, dist] = out_edge;
+
+        if (out_node == dest) {
+            order.emplace_back(cur, dest);
+            visited[cur] = false;
+            return order;
+        }
+
+        if (visited[out_node]) {
+            continue;
+        }
+
+        auto cur_order = dist_to_end(visited, p, dest, out_node);
+        unsigned cur_dist = dist + dist_of_path(p, cur_order);
+        if (cur_dist > total_dist) {
+            total_dist = cur_dist;
+            order = cur_order;
+            max_dist = total_dist - dist;
+            max_node = out_node;
+        }
+    }
+
+    // we only get here if the base case is not encountered and we had
+    // to look for the end node recursively.
+    visited[cur] = false;
+
+    if (!order.empty()) {
+        order.emplace_back(cur, max_node);
+    }
+
+    return order;
+}
+
 static unsigned long count_cells_recursive(const grid<uint16_t> &g, node start)
 {
     pathfinder p(g);
     node end{ g.height() - 1, g.width() - 2 };
     end.type = node::end;
 
-    p.find_min_path(start);
+    p.find_intersections(start);
     if (1) {
         draw_color_grid(p);
+    }
+
+    // All intersections have been found, now do a brute force search for
+    // all possible paths through the graph.
+
+    node en = p.end_node();
+
+    std::unordered_map<node, bool> visited;
+
+    // speedup by looking for the penultimate node instead
+    if (p.edges[en].size() == 1) {
+        node penultimate = p.edges[en].begin()->first;
+        std::cout << "End node connects to node " << penultimate << "\n";
+
+        node start = { .row = 0, .col = 1 };
+        auto order = dist_to_end(visited, p, penultimate, start);
+
+        std::cout << "Path went:\n";
+        for (const auto &path : order) {
+            std::cout << "\t" << path.first << " -> " << path.second << " = "
+                << p.edges.at(path.first).at(path.second) << ".\n";
+        }
+
+        unsigned total_dist = dist_of_path(p, order);
+        return total_dist + p.edges[en][penultimate];
+    }
+
+    if constexpr (0) {
+        for (const auto &edge : as_const(p.edges)) {
+            const auto &[src, destmap] = edge;
+            for (const auto &edge_end : destmap) {
+                const auto &[dest, dist] = edge_end;
+            }
+        }
     }
 
     return p.dist(end);
