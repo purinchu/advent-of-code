@@ -75,20 +75,20 @@ sub in_same_window($h1, $h2)
 {
     # wikipedia https://en.wikipedia.org/wiki/Line%E2%80%93line_intersection#Given_two_points_on_each_line
     # eq for line 1
-    my ($x1, $x2) = ($h1->[0], $h1->[0] + 2 * $h1->[3]);
-    my ($y1, $y2) = ($h1->[1], $h1->[1] + 2 * $h1->[4]);
+    my ($x1, $x2) = ($h1->[0], $h1->[0] + 2000 * $h1->[3]);
+    my ($y1, $y2) = ($h1->[1], $h1->[1] + 2000 * $h1->[4]);
 
     # eq for line 2
-    my ($x3, $x4) = ($h2->[0], $h2->[0] + $h2->[3]);
-    my ($y3, $y4) = ($h2->[1], $h2->[1] + $h2->[4]);
+    my ($x3, $x4) = ($h2->[0], $h2->[0] + 2000 * $h2->[3]);
+    my ($y3, $y4) = ($h2->[1], $h2->[1] + 2000 * $h2->[4]);
 
     my $det = ($x1 - $x2)*($y3 - $y4) - ($y1 - $y2)*($x3-$x4);
 
+    say "Det is 0" if $det == 0;
     return 0 if $det == 0; # will never cross
 
     my $x_int = (($x1*$y2 - $y1*$x2)*($x3-$x4) - ($x1-$x2)*(($x3*$y4 - $y3*$x4))) / $det;
     my $y_int = (($x1*$y2 - $y1*$x2)*($y3-$y4) - ($y1-$y2)*(($x3*$y4 - $y3*$x4))) / $det;
-
 
     if (!($x_int >= $g_min && $x_int <= $g_max &&
         $y_int >= $g_min && $y_int <= $g_max))
@@ -97,15 +97,27 @@ sub in_same_window($h1, $h2)
         return 0;
     }
 
-    if (abs($x_int - $x1) < abs($x_int - $x2)) {
+    if (($h1->[3] > 0 && $x_int < $x1) || ($h1->[3] < 0 && $x_int > $x1)) {
         # crossover in past ?
-        say "$x1 - $x2 cannot make it to $x_int in the future, they already crossed.";
+        say "$x1 -> $x2 cannot make it to X-int $x_int in the future, they already crossed.";
         return 0;
     }
 
-    if (abs($y_int - $y1) < abs($y_int - $y2)) {
+    if (($h2->[3] > 0 && $x_int < $x3) || ($h2->[3] < 0 && $x_int > $x3)) {
         # crossover in past ?
-        say "$y1 - $y2 cannot make it to $y_int in the future, they already crossed.";
+        say "$x3 -> $x4 cannot make it to X-int $x_int in the future, they already crossed.";
+        return 0;
+    }
+
+    if (($h1->[4] > 0 && $y_int < $y1) || ($h1->[4] < 0 && $y_int > $y1)) {
+        # crossover in past ?
+        say "$y1 -> $y2 cannot make it to Y-int $y_int in the future, they already crossed.";
+        return 0;
+    }
+
+    if (($h2->[4] > 0 && $y_int < $y3) || ($h2->[4] < 0 && $y_int > $y3)) {
+        # crossover in past ?
+        say "$y3 -> $y4 cannot make it to Y-int $y_int in the future, they already crossed.";
         return 0;
     }
 
