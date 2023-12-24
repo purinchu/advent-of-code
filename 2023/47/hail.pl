@@ -80,6 +80,9 @@ sub in_same_window($h1, $h2)
     my ($x3, $x4) = ($h2->[0], $h2->[0] + 2000 * $h2->[3]);
     my ($y3, $y4) = ($h2->[1], $h2->[1] + 2000 * $h2->[4]);
 
+    # The '2000' constants are load-bearing for this puzzle, just as they are
+    # for puzzle 48. Probably wouldn't be needed with arbitrary-precision math
+    # but it worked this way for my input so ¯\_(ツ)_/¯.
     my $det = ($x1 - $x2)*($y3 - $y4) - ($y1 - $y2)*($x3-$x4);
 
     return 0 if $det == 0; # will never cross
