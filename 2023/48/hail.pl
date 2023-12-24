@@ -126,9 +126,9 @@ if ($use_xy) {
     say "Brute forcing" unless $use_arb_prec;
     say "Brute forcing (with SLOW ARBITRARY PRECISION)" if $use_arb_prec;
 
-    for (my $x = -500; $x < 500; $x++) {
+    for (my $x = -25; $x < 200; $x++) {
         say "x = $x" if ($x % 25 == 0);
-        Y: for (my $y = -500; $y < 500; $y++) {
+        Y: for (my $y = -25; $y < 200; $y++) {
             # use a rock-centric reference frame to ignore initial position for now
             my $vel = [0, 0, 0, $x, $y, 0];
             my @last_hit;
