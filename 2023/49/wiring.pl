@@ -32,7 +32,6 @@ GetOptions(
 my %nodes; # from => connection_num
 my %edges; # from/to or to/from, aliased to same info
 my %dist;  # from => to => dist.
-my %cached_routes; # from/to (that order), maps to next node
 
 do {
     $input_name = shift @ARGV // $input_name;
@@ -48,29 +47,32 @@ do {
     load_input(@lines);
 };
 
-for my ($k, $v) (%nodes) {
+my @sorted_nodes = sort keys %nodes;
+for my $k (@sorted_nodes) {
     best_paths($k);
 
-    my @all_others = grep { $_ ne $k } keys %nodes;
+    my @all_others = grep { $_ ne $k } @sorted_nodes;
 
     for my $other (@all_others) {
         next unless defined $dist{$k}->{$other}->[1];
         my @path = trace_path($k, $other);
         my $d = $dist{$k}->{$other}->[0];
 
+        # include edges from k -> vias and vias -> last
+        # in accounting for edge usage
+        @path = ($k, @path, $other);
+
         for (my $i = 1; $i < @path; $i++) {
             # find edge conveying route and inc its usage
             my ($l, $r) = @path[($i-1)..$i];
-            $edges{$l}->{$r}->[1]++;
+            $edges{$l}->{$r}->[1] += $d;
         }
     }
-
-#   last;
 }
 
 my %edge_weights;
-for my $l (keys %edges) {
-    for my $r (keys $edges{$l}->%*) {
+for my $l (sort keys %edges) {
+    for my $r (sort keys $edges{$l}->%*) {
         my $key = join('-', sort ($l, $r));
         $edge_weights{$key} += $edges{$l}->{$r}->[1] // 0;
     }
@@ -86,22 +88,38 @@ my @top =
 
 say "Top 3 nodes by connections: @top";
 
+# remove edges and count connections
+for my $pair (@top) {
+    my ($l, $r) = split('-', $pair);
+    delete $edges{$l}->{$r};
+    delete $edges{$r}->{$l};
+}
+
+my $n = $sorted_nodes[0]; # just pick a node and count
+my @neighbors = neighbors_of($n);
+my %visited;
+
+while (@neighbors) {
+    my %new_neighbors;
+    for my $n (@neighbors) {
+        my @ns = grep { !exists $visited{$_} } neighbors_of($n);
+        @new_neighbors{@ns} = (1) x @ns;
+    }
+
+    @visited{@neighbors} = (1) x @neighbors;
+    @neighbors = keys %new_neighbors;
+}
+
+my $num_nodes   = %nodes;
+my $num_cluster = %visited;
+my $num_other   = $num_nodes - $num_cluster;
+say "There are $num_nodes nodes and $num_cluster in 1 cluster, $num_other in the other.";
+say "Product is ", $num_other * $num_cluster;
+
 # Aux subs
 
-# TODO: Derive this programmatically.  I already got the star, but did so with manual use of GraphViz and some text-editing tools.
-# 1. Generate a graph.dot using the code below.
-# 2. Use "neato", *without* edge labels, and it makes it pretty apparent on my input what edges to trim.
-# 3. Manually go to the input and remove those edges
-# 4. Re-run the code below against the updated input.
-# 5. This will generate a .dot without any subgraph clusters so we're still in
-#    a tough spot... but just run 'ccomps' (part of GraphViz) and it will find
-#    subgraphs for you and spit that out into a separate .dot file.
-# 6. Copy the node-to-node edges out of the two subcomponents in the updated .dot file into individual files
-# 7. Use vim to cleanup and then sort | uniq | wc -l to find the number of components.
-# 8. Basic multiplication and you're done.
-
 # Runs Dijkstra's algorithm to update program state to reflect best available
-# path from $from to $to.
+# path from $from to other nodes in the graph.
 sub best_paths($from)
 {
     my %visited;
@@ -127,7 +145,7 @@ sub best_paths($from)
 
 sub neighbors_of($n)
 {
-    my @neighbors = keys $edges{$n}->%*;
+    my @neighbors = sort keys $edges{$n}->%*;
 }
 
 sub set_distance_to($f, $n, $via, $d)
@@ -138,7 +156,6 @@ sub set_distance_to($f, $n, $via, $d)
 
     $dist{$n}->{$f}->[0] = $d;
     $dist{$n}->{$f}->[1] = $via;
-    die "invariant" unless $dist{$f}->{$n}->[0] == $d;
 }
 
 # return intermediate steps on route from $from to $to, if any. If it's a
@@ -169,7 +186,7 @@ sub load_input(@lines)
         $edges{$l} //= { };
         for my $n (@ns) {
             $edges{$n} //= { };
-            my $dist = [ 1 ];
+            my $dist = [ 1, 0 ];
             $edges{$l}->{$n} = $dist;
             $edges{$n}->{$l} = $dist; # same listref
         }
