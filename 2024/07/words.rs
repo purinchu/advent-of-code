@@ -73,7 +73,7 @@ fn main() {
         _ => args[1].clone(),
     };
 
-    let lines: Vec<String> = fs::read_to_string(in_file.clone())
+    let lines: Vec<String> = fs::read_to_string(&in_file)
         .expect("Should have been able to read the file")
         .lines()
         .map(String::from)
