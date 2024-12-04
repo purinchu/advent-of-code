@@ -34,8 +34,8 @@ fn build_grid(lines: Vec<String>) -> Grid
     let row_count = lines.len();
     let mut result: Vec<u8> = Vec::with_capacity(row_count * line_len);
 
-    for (_i, line) in lines.iter().enumerate() {
-        for (_j, ch) in line.bytes().enumerate() {
+    for line in lines {
+        for ch in line.bytes() {
             result.push(ch)
         };
     };
@@ -59,30 +59,26 @@ fn main() {
         .collect();
 
     let grid = build_grid(lines);
-    let line_len = grid.line_len;
-    let row_count = grid.row_count;
     let mut sum = 0;
 
-    for j in 1..(row_count-1) {
-        for i in 1..(line_len-1) {
-            let cur_char = grid.ch(i, j);
-            if cur_char != 'A' {
+    for j in 1..(grid.row_count-1) {
+        for i in 1..(grid.line_len-1) {
+            if grid.ch(i, j) != 'A' {
                 continue;
             }
 
             let cross_str_src = grid.cross_at(i, j);
 
             // if first and last char are the same, the same string would be counted twice by the
-            // sort, giving MAM and SAS when when need them to be MAS and MAS.
+            // sort, giving MAM and SAS when we need them to be MAS and MAS.
             if cross_str_src.bytes().nth(0) == cross_str_src.bytes().nth(3) {
                 continue;
             }
 
             let mut cross_str = Vec::from(cross_str_src.as_bytes());
             cross_str.sort();
-            let final_str = String::from_utf8(cross_str.to_vec()).unwrap();
 
-            if final_str == "MMSS" {
+            if String::from_utf8(cross_str.to_vec()).unwrap() == "MMSS" {
 //              println! ("Cross at {}, {}: {} (from {})", i, j, final_str, cross_str_src);
                 sum += 1;
             }
