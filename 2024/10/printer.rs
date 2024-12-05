@@ -42,8 +42,8 @@ fn main() {
     let mut ord_map = HashMap::new();
     for ord in orderings {
         let vals = ord.split('|')
-            .map(&str::parse::<i32>)
-            .map(&Result::unwrap)
+            .map(str::parse::<i32>)
+            .map(Result::unwrap)
             .collect::<Vec<_>>();
 
         let before: i32 = vals[0];
@@ -59,11 +59,11 @@ fn main() {
 
     for slip in printouts {
         let pages = slip.split(',')
-            .map(&str::parse::<i32>)
-            .map(&Result::unwrap)
+            .map(str::parse::<i32>)
+            .map(Result::unwrap)
             .collect::<Vec<_>>();
 
-        assert!(pages.len() % 2 != 0);
+        assert!(pages.len() % 2 != 0); // There's only a middle elem if the length is odd
 
         let mut found_map = HashMap::new();
         let mut ok = true;
@@ -87,7 +87,8 @@ fn main() {
         if !ok {
             sum += 1;
 
-            // Need to re-sort the array
+            // Need to re-sort the array. Note this relies on not needing to ever support
+            // transitive ordering but that works out in the input we receive.
             let mut new_pages = pages.clone();
             new_pages.sort_by(|a, b| {
                 if let Some(priors) = ord_map.get(&b) {
