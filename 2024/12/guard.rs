@@ -1,4 +1,3 @@
-use std::collections;
 use std::env;
 use std::fs;
 
@@ -35,6 +34,16 @@ impl Direction {
             Right => (1,  0),
             Down  => (0,  1),
             Left  => (-1, 0),
+        }
+    }
+
+    fn bitflag(&self) -> u32 {
+        use Direction::*;
+        return match &self {
+            Up    => 1u32,
+            Right => 2u32,
+            Down  => 4u32,
+            Left  => 8u32,
         }
     }
 }
@@ -175,22 +184,23 @@ fn check_for_loop(grid: &Grid, mut x: usize, mut y: usize) -> bool
     // used to record actions to take on grid later without the closure
     // capturing grid, as grid itself is mutable when it calls the closure
     let mut dir = Direction::Up;
+    let mut dir_flag = dir.bitflag();
     let mut cycle_found = false;
 
     // The closure records positions *AND* directions.  If we ever come back
     // on the same cell (pos+dir) we know we're in a cycle.
     let mut stop = false;
-    let mut cells_seen = collections::HashSet::new();
+    let mut cells_seen = vec![0; grid.row_count * grid.line_len];
     let (mut lastx, mut lasty) = (x, y);
 
     while !stop && !cycle_found {
         { // separate scope to drop the closure consuming x/y to overwrite after
             let mut process = |i: usize, j: usize, ch: char| {
-                if cells_seen.contains(&(i, j, dir)) {
+                if cells_seen[j * grid.line_len + i] & dir_flag == dir_flag {
                     cycle_found = true;
                     return false;
                 } else if ch != '#' && ch != '*' {
-                    cells_seen.insert((i, j, dir));
+                    cells_seen[j * grid.line_len + i] |= dir_flag;
                     lastx = i;
                     lasty = j;
                     return true;
@@ -201,6 +211,7 @@ fn check_for_loop(grid: &Grid, mut x: usize, mut y: usize) -> bool
 
             if grid.walk_to_find(x, y, dir, &mut process) {
                 dir = dir.rotate_right();
+                dir_flag = dir.bitflag();
             } else {
                 stop = true;
             }
