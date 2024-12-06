@@ -229,7 +229,7 @@ fn check_for_loop(grid: &Grid, mut x: usize, mut y: usize) -> bool
 fn parallel_check_for_cycles(grid: &Grid, cells: &Vec<[usize; 2]>, start: (usize, usize)) -> usize
 {
     let (tx, rx) = mpsc::channel::<usize>();
-    let num_threads = thread::available_parallelism().unwrap();
+    let num_threads = 4;
     let (startx, starty) = start;
 
     for chunk in cells.chunks((cells.len() / num_threads) + 1) {
