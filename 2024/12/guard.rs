@@ -1,5 +1,7 @@
 use std::env;
 use std::fs;
+use std::sync::mpsc;
+use std::thread;
 
 // Advent of Code: 2024, day 4, part 2
 
@@ -224,6 +226,40 @@ fn check_for_loop(grid: &Grid, mut x: usize, mut y: usize) -> bool
     return cycle_found;
 }
 
+fn parallel_check_for_cycles(grid: &Grid, cells: &Vec<[usize; 2]>, start: (usize, usize)) -> usize
+{
+    let (tx, rx) = mpsc::channel::<usize>();
+    let num_threads = thread::available_parallelism().unwrap();
+    let (startx, starty) = start;
+
+    for chunk in cells.chunks((cells.len() / num_threads) + 1) {
+        // Use one thread for every chunk
+        let tx = tx.clone();
+        thread::scope(|s| {
+            s.spawn(|| {
+                let mut grid = grid.clone();
+                let mut num_positions = 0;
+
+                for cell in chunk {
+                    grid.set_ch(cell[0], cell[1], '*');
+
+                    if check_for_loop(&grid, startx, starty) {
+                        num_positions += 1;
+                    }
+
+                    grid.set_ch(cell[0], cell[1], '.');
+                }
+
+                tx.send(num_positions).unwrap();
+            });
+        });
+    };
+
+    drop(tx); // We won't actually use the transmitter we created as a base
+
+    return rx.iter().sum();
+}
+
 fn main() {
     let default_filename: &'static str = "../11/input";
     let args: Vec<String> = env::args().collect();
@@ -251,22 +287,13 @@ fn main() {
 
     grid.set_ch(startx, starty, '.'); // avoid confusion with existing ^
 
-    let cells: Vec<[usize; 2]> = find_walked_cells(grid.clone(), startx, starty);
-    let mut num_positions = 0;
+    let cells: Vec<[usize; 2]> = find_walked_cells(grid.clone(), startx, starty)
+        .into_iter()
+        .filter(|c| c[0] != startx || c[1] != starty)
+        .collect::<Vec<_>>();
 
-    for cell in cells.iter() {
-        if cell[0] == startx && cell[1] == starty {
-            continue; // Can't sneak an obstacle here
-        }
-
-        grid.set_ch(cell[0], cell[1], '*');
-
-        if check_for_loop(&grid, startx, starty) {
-            num_positions += 1;
-        }
-
-        grid.set_ch(cell[0], cell[1], '.');
-    }
+    let start = (startx, starty);
+    let num_positions = parallel_check_for_cycles(&grid, &cells, start);
 
     println!("Number of loop-causing barriers: {}", num_positions);
 }
