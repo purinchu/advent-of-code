@@ -131,14 +131,12 @@ fn build_grid(lines: Vec<String>) -> Grid
     return Grid { line_len, row_count, chars: result };
 }
 
-fn find_walked_cells(mut grid: Grid, mut x: usize, mut y: usize) -> Vec<[usize; 2]>
+fn find_walked_cells(grid: Grid, mut x: usize, mut y: usize) -> Vec<[usize; 2]>
 {
     // used to record actions to take on grid later without the closure
     // capturing grid, as grid itself is mutable when it calls the closure
     let mut cells: Vec<[usize; 2]> = vec![];
     let mut dir = Direction::Up;
-
-    grid.set_ch(x, y, '.'); // avoid confusion with existing ^
 
     // The closure records positions with an 'X' so that the iter/filter below can count
     // them up
@@ -172,22 +170,18 @@ fn find_walked_cells(mut grid: Grid, mut x: usize, mut y: usize) -> Vec<[usize; 
 }
 
 // returns true if the given grid would cause a loop during a walk starting from x,y
-fn check_for_loop(mut grid: Grid, mut x: usize, mut y: usize) -> bool
+fn check_for_loop(grid: &Grid, mut x: usize, mut y: usize) -> bool
 {
     // used to record actions to take on grid later without the closure
     // capturing grid, as grid itself is mutable when it calls the closure
     let mut dir = Direction::Up;
     let mut cycle_found = false;
 
-    grid.set_ch(x, y, '.'); // avoid confusion with existing ^
-
     // The closure records positions *AND* directions.  If we ever come back
     // on the same cell (pos+dir) we know we're in a cycle.
     let mut stop = false;
     let mut cells_seen = collections::HashSet::new();
-
-    let mut lastx = x;
-    let mut lasty = y;
+    let (mut lastx, mut lasty) = (x, y);
 
     while !stop && !cycle_found {
         { // separate scope to drop the closure consuming x/y to overwrite after
@@ -234,7 +228,7 @@ fn main() {
         .map(String::from)
         .collect::<Vec<_>>();
 
-    let grid = build_grid(lines);
+    let mut grid = build_grid(lines);
 
     let res_pos = grid.find_one('^');
 
@@ -244,6 +238,8 @@ fn main() {
 
     let (startx, starty) = res_pos.unwrap();
 
+    grid.set_ch(startx, starty, '.'); // avoid confusion with existing ^
+
     let cells: Vec<[usize; 2]> = find_walked_cells(grid.clone(), startx, starty);
     let mut num_positions = 0;
 
@@ -252,15 +248,13 @@ fn main() {
             continue; // Can't sneak an obstacle here
         }
 
-        let new_grid = (|| {
-            let mut g = grid.clone();
-            g.set_ch(cell[0], cell[1], '*'); // add new barrier and re-run loop
-            return g;
-        })();
+        grid.set_ch(cell[0], cell[1], '*');
 
-        if check_for_loop(new_grid, startx, starty) {
+        if check_for_loop(&grid, startx, starty) {
             num_positions += 1;
         }
+
+        grid.set_ch(cell[0], cell[1], '.');
     }
 
     println!("Number of loop-causing barriers: {}", num_positions);
