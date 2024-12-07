@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-# 2024 Day 7 Part 1 / Puzzle 2024/13
+# 2024 Day 7 Part 2 / Puzzle 2024/14
 
 class Puzzle
   def initialize()
