@@ -76,6 +76,7 @@ class Puzzle
 
     if total_mana_spent > @min_mana_spent
       # early exit if it's not possible to beat the current record
+      return
     end
 
     # process existing effects first before allowing player to use their turn
@@ -117,6 +118,11 @@ class Puzzle
 
     if new_boss_hp <= 0
       self.check_lowest_mana(new_total_mana_spent, spells)
+      return
+    end
+
+    # another early exit to avoid adding more steps to queue needlessly
+    if total_mana_spent > @min_mana_spent
       return
     end
 
