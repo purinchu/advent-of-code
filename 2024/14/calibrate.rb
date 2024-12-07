@@ -23,9 +23,14 @@ class Puzzle
       l = nums[0]
       perm.each_with_index { |op, i|
         r = nums[i+1]
-        l = l + r if op == '+'
-        l = l * r if op == '*'
-        l = (l.to_s + r.to_s).to_i if op == '|'
+        case op
+        when '+'
+          l = l + r if op == '+'
+        when '*'
+          l = l * r if op == '*'
+        when '|'
+          l = (l.to_s + r.to_s).to_i if op == '|'
+        end
       }
 
       l == total
