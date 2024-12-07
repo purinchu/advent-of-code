@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-# 2015 Day 21 / Puzzle 2015/41
+# 2015 Day 21 Part 1 / Puzzle 2015/41
 
 class Puzzle
   def initialize()
