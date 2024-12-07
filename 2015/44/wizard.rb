@@ -76,6 +76,7 @@ class Puzzle
 
     if total_mana_spent > @min_mana_spent
       # early exit if it's not possible to beat the current record
+      return
     end
 
     # HARD MODE
