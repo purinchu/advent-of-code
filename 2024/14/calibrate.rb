@@ -17,25 +17,22 @@ class Puzzle
   def calibrations
     @calibrations
   end
+end
 
-  def is_ok?(total, nums)
-    return ['+', '*', '|'].repeated_permutation(nums.length - 1).any? { |perm|
-      l = nums[0]
-      perm.each_with_index { |op, i|
-        r = nums[i+1]
-        case op
-        when '+'
-          l = l + r if op == '+'
-        when '*'
-          l = l * r if op == '*'
-        when '|'
-          l = (l.to_s + r.to_s).to_i if op == '|'
-        end
-      }
-
-      l == total
-    }
+def check_total(val, tot, remainders)
+  if val > tot
+    return false
   end
+  if remainders.empty?
+    return val == tot
+  end
+
+  entry, rest = remainders[0], remainders[1..]
+  res = (check_total(entry + val, tot, rest) or
+         check_total(entry * val, tot, rest) or
+         check_total((val.to_s + entry.to_s).to_i, tot, rest)
+        )
+  return res
 end
 
 p = Puzzle.new()
@@ -44,9 +41,10 @@ File.foreach(ARGV.shift || '../13/input') { |line|
   p.decode(line.chomp)
 }
 
-matches = p.calibrations.filter_map { |entry|
+sum = p.calibrations.filter_map { |entry|
   total, nums = entry
-  total if p.is_ok?(total, nums)
-}
 
-puts "#{matches.sum}"
+  total if check_total(0, total, nums)
+}.sum
+
+puts "#{sum}"
