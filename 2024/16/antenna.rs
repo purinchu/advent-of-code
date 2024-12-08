@@ -5,58 +5,15 @@ use std::fs;
 
 // Goal is to find 'antinodes' of each antenna grouping that is present on the map, even if
 // inaccessible.  The number of unique locations of antinodes is the puzzle solution.
-#[derive(Clone,Debug)]
+#[derive(Debug)]
 struct Antenna {
     group: char,
     x: usize,
     y: usize,
 }
 
-#[derive(Clone)]
-struct Grid {
-    line_len: usize,
-    row_count: usize,
-    chars: Vec<char>,
-    antenna: Vec<Antenna>,
-}
-
-#[allow(dead_code)]
-impl Grid {
-    fn ch(&self, i: usize, j: usize) -> char {
-        return self.chars[j * self.line_len + i] as char;
-    }
-
-    fn set_ch(&mut self, i: usize, j: usize, ch: char) {
-        self.chars[j * self.line_len + i] = ch;
-    }
-
-    #[allow(dead_code)]
-    fn dump_grid(&self) {
-        println!("{}x{} grid", self.line_len, self.row_count);
-        for l in 0..self.row_count {
-            println!("{}", &(self.chars[(l*self.line_len)..((l+1)*self.line_len)]).iter().collect::<String>());
-        }
-    }
-
-    // Find x,y position of *first* cell filled with char.
-    fn find_one(&self, ch: char) -> Option<(usize, usize)> {
-        let maybe_pos = self.chars.iter().position(|c| (*c as char) == ch);
-
-        if let Some(pos) = maybe_pos {
-            let y = pos / self.line_len;
-            let x = pos % self.line_len;
-            return Some((x, y));
-        } else {
-            return None
-        }
-    }
-
-    fn is_in_bounds(&self, i: usize, j: usize) -> bool {
-        if i >= self.line_len || j >= self.row_count {
-            return false;
-        }
-        return true;
-    }
+fn is_in_bounds(i: usize, j: usize, w: usize, h: usize) -> bool {
+    return i < w && j < h;
 }
 
 // I couldn't think of any fancy algorithm for this and I'm not using crates.  Luckily my input
@@ -89,23 +46,19 @@ fn combinations(n: usize, r: usize) -> Vec<Vec<usize>>
     panic!("Unimplemented");
 }
 
-fn build_grid(lines: Vec<String>) -> Grid
+fn find_antennae(lines: Vec<String>) -> Vec<Antenna>
 {
-    let line_len = lines[0].len();
-    let row_count = lines.len();
-    let mut result: Vec<char> = Vec::with_capacity(row_count * line_len);
-    let mut antenna: Vec<Antenna> = Vec::with_capacity(row_count * line_len);
+    let mut antenna: Vec<Antenna> = Vec::with_capacity(64);
 
     for (j, line) in lines.into_iter().enumerate() {
         for (i, ch) in line.chars().enumerate() {
-            result.push(ch);
             if ch.is_ascii_alphanumeric() {
                 antenna.push(Antenna { group: ch, x: i, y: j });
             }
         };
     };
 
-    return Grid { line_len, row_count, chars: result, antenna };
+    return antenna;
 }
 
 fn main() {
@@ -123,17 +76,19 @@ fn main() {
         .map(String::from)
         .collect::<Vec<_>>();
 
-    let grid = build_grid(lines);
+    let h = lines.len();
+    let w = lines[0].len();
+    let antenna = find_antennae(lines);
     let mut antipode_pos = Vec::<(usize, usize)>::with_capacity(32);
 
-    let mut ant_groups = grid.antenna.iter().map(|x| x.group).collect::<Vec<_>>();
+    let mut ant_groups = antenna.iter().map(|x| x.group).collect::<Vec<_>>();
     ant_groups.sort();
     ant_groups.dedup();
 
     for grp in &ant_groups {
-        let ants = &grid.antenna.iter().filter(|x| x.group == *grp).collect::<Vec<_>>();
+        let ants = &antenna.iter().filter(|x| x.group == *grp).collect::<Vec<_>>();
         let n = ants.len();
-        println!("Antenna group: {} ({})", grp, n);
+
         for combo in combinations(n, 2) {
             let ant_l = ants[combo[0]];
             let ant_r = ants[combo[1]];
@@ -150,7 +105,7 @@ fn main() {
                 let anti_x = ant_l.x as i32 + dx * count;
                 let anti_y = ant_l.y as i32 + dy * count;
 
-                if grid.is_in_bounds(anti_x as usize, anti_y as usize) {
+                if is_in_bounds(anti_x as usize, anti_y as usize, w, h) {
                     antipode_pos.push((anti_x as usize, anti_y as usize));
                     count += 1;
                 } else {
@@ -163,7 +118,7 @@ fn main() {
                 let anti_x = ant_r.x as i32 - dx * count;
                 let anti_y = ant_r.y as i32 - dy * count;
 
-                if grid.is_in_bounds(anti_x as usize, anti_y as usize) {
+                if is_in_bounds(anti_x as usize, anti_y as usize, w, h) {
                     antipode_pos.push((anti_x as usize, anti_y as usize));
                     count += 1;
                 } else {
@@ -176,12 +131,5 @@ fn main() {
     antipode_pos.sort();
     antipode_pos.dedup();
 
-//  let mut grid2 = grid.clone();
-//  for (anti_x, anti_y) in &antipode_pos {
-//      println!("Antipode at {}, {}", anti_x, anti_y);
-//      grid2.set_ch(*anti_x, *anti_y, '#');
-//  }
-
-//  grid2.dump_grid();
-    println!("Number of antipodes: {}", antipode_pos.len());
+    println!("{}", antipode_pos.len());
 }
