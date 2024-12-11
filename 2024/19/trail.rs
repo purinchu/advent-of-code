@@ -171,13 +171,10 @@ fn main() {
     let trailheads = grid.find_all('0');
     let mut score = 0;
 
-    for t in trailheads.iter() {
+    for (x, y) in trailheads.iter() {
         let mut queue: Vec<(Direction, usize, usize)> = vec![];
         let mut visited = vec![false; grid.chars.len()];
         let mut t_score = 0;
-
-        let (x, y) = t;
-//      println!("Trailhead starts at {}, {}", x, y);
 
         // direction ignored for trailhead
         queue.push((Direction::Up, *x, *y));
@@ -193,12 +190,9 @@ fn main() {
 
             let cur_height = grid.ch(x, y);
             if cur_height == '9' {
-//              println!("Top of the trail at {}, {}", x, y);
                 t_score += 1;
                 continue;
             }
-
-//          println!(" At {}, {}, height {}", x, y, cur_height);
 
             let next_height = (cur_height as u8 + 1) as char;
             let ns = if cur_height != '0' {
@@ -210,10 +204,6 @@ fn main() {
                 tmp.extend(neighbors_of_in_dir(Direction::Right, x, y));
                 tmp
             };
-
-//          for (new_dir, x1, y1) in ns.iter() {
-//              println!("  Considering {:?}, {} {} as next dir", new_dir, *x1, *y1);
-//          }
 
             let valid_ns = ns
                 .iter()
