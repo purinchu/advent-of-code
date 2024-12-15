@@ -1,6 +1,6 @@
 use std::env;
 use std::fs;
-//use std::{time,thread}; // for terminal animation
+use std::{time,thread}; // for terminal animation
 
 // Advent of Code: 2024 day 15, part 2
 
@@ -47,7 +47,19 @@ impl Grid {
         for l in 0..self.h {
             let low = l * self.w;
             let high = (l + 1) * self.w;
-            println!("{}", std::str::from_utf8(&(self.chars[low..high])).unwrap());
+            for ch in &self.chars[low..high] {
+                if *ch == b'.' {
+                    print!("\x1b[1;30m{}\x1b[0m", *ch as char);
+                } else if *ch == b'#' {
+                    print!("\x1b[1;36m{}\x1b[0m", *ch as char);
+                } else if *ch == b'@' {
+                    print!("\x1b[0;102m\x1b[1;95m{}\x1b[0m", *ch as char);
+                } else {
+                    print!("{}", *ch as char);
+                }
+            }
+
+            println!("");
         }
     }
 
@@ -206,11 +218,13 @@ fn do_move_row(mut g: &mut Grid, i: usize, j: usize, row: usize) {
 fn main() {
     let default_filename: &'static str = "../29/input";
     let args: Vec<String> = env::args().collect();
-    let in_file: String = match args.len() {
+    let in_file: String = match args.iter().filter(|a| !a.starts_with("-")).count() {
         // No args provided save argv[0]
         1 => String::from(default_filename),
-        _ => args[1].clone(),
+        _ => args[args.len() - 1].clone(),
     };
+
+    let animate = args.contains(&String::from("--animate"));
 
     let lines = fs::read_to_string(&in_file)
         .expect("Should have been able to read the file")
@@ -224,9 +238,11 @@ fn main() {
 
     println!("Robot starts at {},{}", x, y);
 
-//  print!("\x1b[?1049h"); // ANSI alternate screen mode
+    if animate {
+        print!("\x1b[?1049h"); // ANSI alternate screen mode
+    }
 
-//  let mut i = 0;
+    let mut i = 0;
     let bigdirs = dirs[..].concat();
     for d in bigdirs.bytes() {
         let movement = match d {
@@ -241,8 +257,10 @@ fn main() {
         let (nx, ny) = ((x as i32 + dx) as usize, (y as i32 + dy) as usize);
         let next_char = grid.ch_or(nx, ny, b'#');
 
-//      println!("{}: Moving robot {:?} into {}", i, movement, next_char as char);
-//      i += 1;
+        if animate {
+            println!("{}: Moving robot {:?} into {}", i, movement, next_char as char);
+            i += 1;
+        }
 
         if next_char == b'#' {
             // blocked
@@ -260,12 +278,16 @@ fn main() {
 
                 if grid.ch(ex, ey) != b'.' {
                     // blocked
-//                  println!("  boxes and robot blocked");
+                    if animate {
+                        println!("  boxes and robot blocked");
+                    }
                     continue;
                 }
 
                 // found empty cell, swap and move robot
-//              println!("  moving boxes and moving robot");
+                if animate {
+                    println!("  moving boxes and moving robot");
+                }
 
                 // move cells one by one into empty space
                 while grid.ch(nx, ny) != b'.' {
@@ -286,7 +308,10 @@ fn main() {
                     continue;
                 }
 
-//              println!("  moving boxes and moving robot");
+                if animate {
+                    println!("  moving boxes and moving robot");
+                }
+
                 do_move_row(&mut grid, nx, ny, ny2);
             }
         } else {
@@ -296,16 +321,20 @@ fn main() {
         grid.chars.swap(cur_idx, adj_idx);
         (x, y) = (nx, ny);
 
-//      println!("");
-//      grid.dump_grid();
+        if animate {
+            println!("");
+            grid.dump_grid();
 
-//      let delay = time::Duration::from_millis(300);
-//      thread::sleep(delay);
+            let delay = time::Duration::from_millis(30);
+            thread::sleep(delay);
 
-//      print!("\x1b[2J"); // Erase entire screen
+            print!("\x1b[2J"); // Erase entire screen
+        }
     }
 
-//  print!("\x1b[?1049l"); // Restore normal ANSI screen
+    if animate {
+        print!("\x1b[?1049l"); // Restore normal ANSI screen
+    }
 
     // Find all boxes and convert their X/Y into 'GPS' coords
     grid.dump_grid();
