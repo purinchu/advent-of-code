@@ -1,7 +1,7 @@
 use std::env;
 use std::fs;
 
-// Advent of Code: 2024 day 15, part 1
+// Advent of Code: 2024 day 15, part 2
 
 #[derive(Clone)]
 struct Grid {
@@ -84,34 +84,6 @@ impl Grid {
 
     fn is_in_bounds(&self, i: usize, j: usize) -> bool {
         return i < self.w && j < self.h;
-    }
-
-    // starting from (i,j), finds neighbors based on a provided closure, and
-    // for each cell visited calls a second closure.
-    fn visit_from<N, V>(&self, i: usize, j: usize, neighbors: N, mut visit: V)
-        -> ()
-        where
-            N: Fn(usize, usize) -> Vec<(usize, usize)>,
-            V: FnMut(usize, usize) -> ()
-    {
-        let mut queue: Vec<(usize, usize)> = vec![];
-        let mut visited = vec![false; self.w * self.h];
-
-        // direction ignored for trailhead
-        queue.push((i, j));
-
-        while let Some(node) = queue.pop() {
-            let (x, y) = node;
-
-            if !self.is_in_bounds(x, y) || visited[self.id_from_pos(x, y)] {
-                continue;
-            }
-
-            visit(x, y);
-            visited[self.id_from_pos(x, y)] = true;
-
-            queue.extend(neighbors(x, y));
-        }
     }
 
     // starting from (i,j), walks in a straight line in direction @dir, calling the closure @f on
