@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+//use std::{time,thread}; // for terminal animation
 
 // Advent of Code: 2024 day 15, part 2
 
@@ -28,7 +29,6 @@ impl Direction {
     }
 }
 
-#[allow(dead_code)]
 impl Grid {
     fn ch(&self, i: usize, j: usize) -> u8 {
         return self.chars[self.id_from_pos(i, j)];
@@ -41,11 +41,6 @@ impl Grid {
         } else {
             return def;
         }
-    }
-
-    fn set_ch(&mut self, i: usize, j: usize, ch: u8) {
-        let idx = self.id_from_pos(i, j);
-        self.chars[idx] = ch;
     }
 
     fn dump_grid(&self) {
@@ -115,10 +110,10 @@ fn build_grid(lines: Vec<String>) -> Grid {
     for line in lines {
         for ch in line.bytes() {
             match ch {
-                b'#' => { result.push(ch); result.push(ch)     },
+                b'#' => { result.push(ch);   result.push(ch)   },
                 b'O' => { result.push(b'['); result.push(b']') },
-                b'.' => { result.push(ch); result.push(ch)     },
-                b'@' => { result.push(ch); result.push(b'.')   },
+                b'.' => { result.push(ch);   result.push(ch)   },
+                b'@' => { result.push(ch);   result.push(b'.') },
                 _    => panic!("Unhandled char"),
             }
         };
@@ -225,9 +220,8 @@ fn main() {
     let (grid_lines, dirs) = split_at_empty_line(lines);
 
     let mut grid = build_grid(grid_lines);
-    grid.dump_grid();
-
     let (mut x, mut y) = grid.find_one(b'@').unwrap();
+
     println!("Robot starts at {},{}", x, y);
 
 //  print!("\x1b[?1049h"); // ANSI alternate screen mode
@@ -250,74 +244,62 @@ fn main() {
 //      println!("{}: Moving robot {:?} into {}", i, movement, next_char as char);
 //      i += 1;
 
+        if next_char == b'#' {
+            // blocked
+            continue;
+        }
+
+        let cur_idx = grid.id_from_pos(x, y);   // robot cur pos
+        let adj_idx = grid.id_from_pos(nx, ny); // robot next pos
+
         if next_char == b']' || next_char == b'[' {
-            // move boxes if we can. Walk_to_find stops on the empty/blocker cell
             if d == b'<' || d == b'>' {
+                // horizontal box movement
                 let (mut ex, mut ey) = grid.walk_to_find(nx, ny, movement,
                     |_, _, newch| newch == b'[' || newch == b']');
-                if grid.ch(ex, ey) == b'.' {
-                    // found empty cell, swap and move robot
-//                  println!("  moving boxes and moving robot");
 
-                    let cur_idx = grid.id_from_pos(x, y);   // robot cur pos
-                    let adj_idx = grid.id_from_pos(nx, ny); // robot next pos
-
-                    // move cells one by one into empty space, can't use swap trick
-                    // because of dual-width boxes
-                    while grid.ch(nx, ny) != b'.' {
-                        let far_idx = grid.id_from_pos(ex, ey); // empty cell to push into
-                        let far_adj_idx = grid.id_from_pos(
-                            (ex as i32 - dx) as usize,
-                            (ey as i32 - dy) as usize);
-//                      println!("  far idx = {}, idx next = {}", far_idx, far_adj_idx);
-                        grid.chars.swap(far_idx, far_adj_idx);
-
-                        ex = (ex as i32 - dx) as usize;
-                        ey = (ey as i32 - dy) as usize;
-                    }
-
-                    // adjacent cell is empty, complete the move
-                    grid.chars.swap(cur_idx, adj_idx);
-
-                    (x, y) = (nx, ny);
-                } else {
-                    // some kind of other blocker, we're stuck
+                if grid.ch(ex, ey) != b'.' {
+                    // blocked
 //                  println!("  boxes and robot blocked");
+                    continue;
+                }
+
+                // found empty cell, swap and move robot
+//              println!("  moving boxes and moving robot");
+
+                // move cells one by one into empty space
+                while grid.ch(nx, ny) != b'.' {
+                    let far_idx = grid.id_from_pos(ex, ey); // empty cell to push into
+                    let far_adj_idx = grid.id_from_pos(
+                        (ex as i32 - dx) as usize,
+                        (ey as i32 - dy) as usize);
+                    grid.chars.swap(far_idx, far_adj_idx);
+
+                    ex = (ex as i32 - dx) as usize;
+                    ey = (ey as i32 - dy) as usize;
                 }
             } else {
+                // vertical box movement
                 let ny2 = (ny as i32 + dy) as usize;
-                if can_move_row(&grid, nx, ny, ny2) {
-                    do_move_row(&mut grid, nx, ny, ny2);
-                    let cur_idx = grid.id_from_pos(x, y);   // robot cur pos
-                    let adj_idx = grid.id_from_pos(nx, ny); // robot next pos
-
-                    grid.chars.swap(cur_idx, adj_idx);
-
-                    (x, y) = (nx, ny);
-
-//                  println!("  moving boxes and moving robot");
-                } else {
-//                  println!("  boxes and robot blocked");
+                if !can_move_row(&grid, nx, ny, ny2) {
+                    // blocked
+                    continue;
                 }
+
+//              println!("  moving boxes and moving robot");
+                do_move_row(&mut grid, nx, ny, ny2);
             }
-        } else if next_char == b'.' {
-            // we can move directly
-//          println!("  moving robot");
-
-            let cur_idx = grid.id_from_pos(x, y);   // robot cur pos
-            let adj_idx = grid.id_from_pos(nx, ny); // robot next pos
-            grid.chars.swap(cur_idx, adj_idx);
-
-            (x, y) = (nx, ny);
         } else {
-            // blocked, ignore
-//          println!("  robot blocked");
+            assert!(next_char == b'.');
         }
+
+        grid.chars.swap(cur_idx, adj_idx);
+        (x, y) = (nx, ny);
 
 //      println!("");
 //      grid.dump_grid();
 
-//      let delay = time::Duration::from_millis(900);
+//      let delay = time::Duration::from_millis(300);
 //      thread::sleep(delay);
 
 //      print!("\x1b[2J"); // Erase entire screen
