@@ -38,41 +38,8 @@ class Puzzle
     return count
   end
 
-  def split(stone, bleft)
-    return stone.length unless bleft>0
-
-    count = 0
-    stone.each { |s|
-      new_vals = []
-      key = "#{bleft}-#{s}"
-
-      if @stored_counts.has_key?(key)
-        count += @stored_counts[key]
-        next
-      end
-
-      if s == 0
-        new_vals.push(1)
-      elsif s.to_s.length % 2 == 0
-        s1 = s.to_s
-        new_vals = [ s1[0...(s1.length/2)].to_i, s1[(s1.length/2)..].to_i ]
-      else
-        new_vals.push(s * 2024);
-      end
-
-      @stored_counts[key] = self.split(new_vals, bleft - 1)
-      count += @stored_counts[key]
-    }
-
-    return count
-  end
-
   def designs
     @designs
-  end
-
-  def towels
-    @towels
   end
 end
 
