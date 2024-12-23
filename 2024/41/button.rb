@@ -130,7 +130,7 @@ class Puzzle
     stop_col  = col_of(stop)
     dx = stop_col - start_col
     dy = stop_row - start_row
-    key = "#{dx},#{dy}"
+    key = "#{start}#{stop},#{dx},#{dy}"
 
     if @move_cache.has_key?(key)
       return @move_cache[key]
@@ -145,6 +145,10 @@ class Puzzle
     opts = resolve_to_zero(dx, dy, start_row, start_col)
     opts.each { |opt| opt.concat('A') }
 
+    groups = opts.group_by { |x| x.length }
+    min_group = groups.keys.min
+
+    opts = groups[min_group]
     @move_cache[key] = opts
     return opts
   end
@@ -192,7 +196,7 @@ sum = 0
 p.codes.each { |code|
   min_final_len = 9999999
   counts = { }
-  p.clear_cache
+# p.clear_cache
 
   strings = p.do_code(code)
   strings.each { |str|
