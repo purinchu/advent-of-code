@@ -1,13 +1,12 @@
 use std::env;
 use std::fs;
-use std::fs::File;
-use std::io::Read;
 use std::collections::HashMap;
 
 // Advent of Code: 2024, day 24, part 2
 
 // Goal is to find outputs of wired-up binary gates
 #[derive(Debug,Clone)]
+#[allow(dead_code)]
 struct Output {
     op: u8,
     is_term: bool,
@@ -62,78 +61,10 @@ fn read_wiring(presets: Vec<String>, wiring: Vec<String>) -> OutputMap {
     return map;
 }
 
-fn eval(map: &OutputMap, node: String) -> u32 {
-    let entry = map[&node].clone(); // crash if it's not there
-    let dval1 = if entry.is_term { 0u32 } else { eval(map, entry.dep1) };
-    let dval2 = if entry.is_term { 0u32 } else { eval(map, entry.dep2) };
-    let val = match entry.op {
-        b'^' => dval1 ^ dval2,
-        b'&' => dval1 & dval2,
-        b'|' => dval1 | dval2,
-        b'1' => if entry.is_set { 1u32 } else { 0u32 },
-        _    => panic!("????"),
-    };
-
-    return val;
-}
-
-fn set_x(mut wires: &mut OutputMap, val: u64) {
-    let mut all_x = wires.keys()
-        .filter(|x| x.starts_with("x"))
-        .map(|x| x.clone())
-        .collect::<Vec<_>>();
-    all_x.sort();
-
-    let mut i = 0;
-
-    for x in all_x.iter() {
-        let mut cur_entry = wires.get_mut(x).unwrap();
-        if (val & (1u64 << i)) != 0 {
-            cur_entry.is_set = true;
-        } else {
-            cur_entry.is_set = false;
-        }
-
-        i += 1;
-    }
-}
-
-fn set_y(mut wires: &mut OutputMap, val: u64) {
-    let mut all_y = wires.keys()
-        .filter(|x| x.starts_with("y"))
-        .map(|x| x.clone())
-        .collect::<Vec<_>>();
-    all_y.sort();
-
-    let mut i = 0;
-
-    for y in all_y.iter() {
-        let mut cur_entry = wires.get_mut(y).unwrap();
-        if (val & (1u64 << i)) != 0 {
-            cur_entry.is_set = true;
-        } else {
-            cur_entry.is_set = false;
-        }
-
-        i += 1;
-    }
-}
-
-fn get_z(wires: &OutputMap) -> u64 {
-    let mut all_z = wires.keys().filter(|x| x.starts_with("z")).collect::<Vec<_>>();
-    all_z.sort();
-
-    let mut val: u64 = 0;
-    let mut i = 0;
-
-    for z in all_z.iter() {
-        let cur_bit = eval(&wires, z.to_string()) as u64;
-
-        val = val | (cur_bit << i);
-        i += 1;
-    }
-
-    return val;
+fn has_op_fed_by(wires: &OutputMap, op: u8, input: &String) -> bool {
+    return wires.iter()
+        .any(|(_, node)|
+            node.op == op && (node.dep1 == *input || node.dep2 == *input));
 }
 
 fn main() {
@@ -153,42 +84,40 @@ fn main() {
 
     let (presets, wiring) = split_at_empty_line(lines);
 
-    let mut wires = read_wiring(presets, wiring);
+    let wires = read_wiring(presets, wiring);
 
-    let max_bit_rank = 44; // 0-indexed, i.e. 0..=44 can be set
+    // We know our input is a ripple carry adder, and apparently the input is constrained so that
+    // some logic gates are always broken in specific ways
 
-    let mut f = File::open("/dev/urandom").unwrap();
-    let mut buf = [0u8; 8];
-    let mut ever_wrong = 0u64;
+    let mut broken_outputs: Vec<String> = vec![];
+    let last_z = wires.keys().filter(|x| x.starts_with('z')).max().unwrap();
 
-    for _i in 0..20 {
-        f.read_exact(&mut buf).unwrap();
-        let x = u64::from_le_bytes(buf) & ((1u64 << max_bit_rank) - 1);
-        f.read_exact(&mut buf).unwrap();
-        let y = u64::from_le_bytes(buf) & ((1u64 << max_bit_rank) - 1);
-        let right_z = x + y;
+    for (name, node) in wires.iter() {
+        if name.starts_with('z') && name != last_z && node.op != b'^' {
+            broken_outputs.push(name.clone());
+        }
 
-        set_x(&mut wires, x);
-        set_y(&mut wires, y);
-        let actual_z = get_z(&wires);
+        let has_x = (node.dep1.starts_with('x') || node.dep2.starts_with('x'))
+            && node.dep1 != "x00" && node.dep2 != "x00";
+        let has_y = (node.dep1.starts_with('y') || node.dep2.starts_with('y'))
+            && node.dep1 != "y00" && node.dep2 != "y00";
 
-        println!("    {:048b} +", x);
-        println!("    {:048b} =", y);
-        println!("    {:-<48}", "-");
-        println!("    {:048b} z", actual_z);
-        println!("df: {:048b}", (right_z ^ actual_z));
-        println!("");
+        if !name.starts_with('z') && !has_x && !has_y && node.op == b'^' {
+            broken_outputs.push(name.clone());
+        }
 
-        ever_wrong = ever_wrong | (right_z ^ actual_z);
+        // Indirect brokenness
+        // https://www.reddit.com/r/adventofcode/comments/1hla5ql/2024_day_24_part_2_a_guide_on_the_idea_behind_the/m3kws15/
+        if has_x && has_y && node.op == b'^' && !has_op_fed_by(&wires, b'^', name) {
+            broken_outputs.push(name.clone());
+        }
+
+        if has_x && has_y && node.op == b'&' && !has_op_fed_by(&wires, b'|', name) {
+            broken_outputs.push(name.clone());
+        }
     }
 
-    println!("Bits ever wrong: {:048b}", ever_wrong);
-
-    let mut count = 0;
-    while ever_wrong & 1 == 0 {
-        count += 1;
-        ever_wrong >>= 1;
-    }
-
-    println!("Least bit incorrect: {}", count);
+    broken_outputs.sort();
+    broken_outputs.dedup();
+    println!("Broken outputs: {}", broken_outputs.join(","));
 }
