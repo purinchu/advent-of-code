@@ -31,11 +31,9 @@ class Puzzle
     heights = [0, 0, 0, 0, 0]
 
     lock.split("\n").drop(1).each { |line|
-      heights[0] += line[0] == "#" ? 1 : 0
-      heights[1] += line[1] == "#" ? 1 : 0
-      heights[2] += line[2] == "#" ? 1 : 0
-      heights[3] += line[3] == "#" ? 1 : 0
-      heights[4] += line[4] == "#" ? 1 : 0
+      (0..4).each { |i|
+        heights[i] += line[i] == "#" ? 1 : 0
+      }
     }
 
     return heights
@@ -45,11 +43,9 @@ class Puzzle
     heights = [0, 0, 0, 0, 0]
 
     key.split("\n").reverse.drop(1).each { |line|
-      heights[0] += line[0] == "#" ? 1 : 0
-      heights[1] += line[1] == "#" ? 1 : 0
-      heights[2] += line[2] == "#" ? 1 : 0
-      heights[3] += line[3] == "#" ? 1 : 0
-      heights[4] += line[4] == "#" ? 1 : 0
+      (0..4).each { |i|
+        heights[i] += line[i] == "#" ? 1 : 0
+      }
     }
 
     return heights
@@ -71,8 +67,7 @@ p.locks.each { |lock|
   p.keys.each { |key|
     kh = p.key_height(key)
 
-    overlap = lh.zip(kh).map { |x| x.sum }.any? { |x| x > 5 }
-    if !overlap
+    if lh.zip(kh).map { |x| x.sum }.none? { |x| x > 5 }
       count += 1
     end
   }
