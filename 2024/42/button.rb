@@ -84,7 +84,7 @@ class Puzzle
 
     if dx != 0
       if dy == 0 || col == 0 || (!0.between?(minc, maxc) || row != 3)
-        # dx == 0: if we're only moving in the current row we won't be asked to touch
+        # dy == 0: if we're only moving in the current row we won't be asked to touch
         # the wrong gap.
         # col == 0: If col == 0 we're moving away, and we should do so first.
         # 0.between?: Is it possible to hit panic area with wrong x/y seq? If
