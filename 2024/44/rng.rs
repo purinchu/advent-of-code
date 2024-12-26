@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-use std::convert::TryInto;
 use std::env;
 use std::fs;
 
@@ -26,37 +24,43 @@ fn evolve_secret(num: u64) -> u64 {
     return new_secret;
 }
 
-fn price_history(init: u64) -> Vec<u32> {
+fn record_prices(init: u64) -> Vec<u16> {
     let mut secret = init;
-    let mut prices: Vec<u32> = Vec::with_capacity(2001);
+    let mut last_price: i8 = (init % 10) as i8;
+    let mut idx: u16 = 0;
 
-    prices.push((init % 10) as u32);
+    let mut max_bananas: Vec<u16> = vec![0xFFFFu16; 65536];
 
-    for _ in 0..2000 {
+    for i in 0..2000 {
         secret = evolve_secret(secret);
-        prices.push((secret % 10) as u32);
-    }
+        let price = (secret % 10) as i8;
 
-    return prices;
-}
+        let diff = price - last_price;
+        last_price = price;
 
-fn price_diffs(prices: &Vec<u32>) -> Vec<i32> {
-    let result = prices.windows(2)
-        .map(|win| win[1] as i32 - win[0] as i32)
-        .collect::<Vec<_>>();
-    return result;
-}
+        idx <<= 4;
+        idx |= (diff as u16) & 0x0Fu16;
+        idx &= 0xFFFFu16;
 
-fn price_for_seq(prices: &Vec<u32>, diffs: &Vec<i32>, seq: &[i32; 4]) -> Option<u32> {
-    for i in 3..diffs.len() {
-        let cur_seq = &diffs[(i-3)..=i];
+        if i >= 3 {
+            let idx_right_type = idx as usize;
 
-        if seq == cur_seq {
-            return Some(prices[i + 1]);
+            // Enough info to start recording best prices found
+            // Only the first price should be recorded
+            if max_bananas[idx_right_type] == 0xFFFFu16 {
+                max_bananas[idx_right_type] = price as u16;
+            }
         }
     }
 
-    return None;
+    // Reset max price we can sell for to 0 for entries we didn't find
+    for x in max_bananas.iter_mut() {
+        if *x == 0xFFFFu16 {
+            *x = 0;
+        }
+    }
+
+    return max_bananas;
 }
 
 fn main() {
@@ -75,43 +79,27 @@ fn main() {
         .map(Result::unwrap)
         .collect::<Vec<_>>();
 
-    let histories = lines.iter()
-        .map(|seed| price_history(*seed))
+    let max_improvements: Vec<Vec<u16>> = lines.iter()
+        .map(|seed| record_prices(*seed))
         .collect::<Vec<_>>();
 
-    let diffs = histories.iter().map(price_diffs).collect::<Vec<_>>();
+    let improvement_totals: Vec<u16> = max_improvements.iter().cloned()
+        .reduce(|acc, row| {
+            let sum: Vec<u16> = acc.iter().zip(row.iter()).map(|(l,r)| l+r).collect::<Vec<_>>();
+            return sum
+        })
+        .unwrap()
+        ;
 
-    println!("{} prices, {} diffs for first buyer", histories[0].len(), diffs[0].len());
+    let max_possible: u16 = *improvement_totals.iter().max().unwrap();
+    let max_position: i16 = (improvement_totals.iter()
+        .position(|x| *x == max_possible).unwrap()) as i16;
 
-    // Look for all possible price change sequences
-    let mut sequences = HashSet::new();
+    let v1 : i8 =  ((max_position)                    >> 12) as i8;
+    let v2 : i8 = (((max_position & 0x0F00i16) << 4 ) >> 12) as i8;
+    let v3 : i8 = (((max_position & 0x00F0i16) << 8 ) >> 12) as i8;
+    let v4 : i8 = (((max_position & 0x000Fi16) << 12) >> 12) as i8;
 
-    for diff_seq in diffs.iter() {
-        for seq in diff_seq.windows(4) {
-            sequences.insert(seq);
-        }
-    }
-
-//  println!("Buyer 1 price: {}", histories[1][0]);
-//  for i in 0..diffs[1].len() {
-//      println!("Buyer 1 price: {} ({})", histories[1][i+1], diffs[1][i]);
-//  }
-
-    println!("There are {} unique sequences", sequences.len());
-    let mut max = 0;
-    for seq in sequences.iter() {
-        let sized_seq = seq[0..4].try_into().unwrap();
-        let bananas: u32 = histories.iter().enumerate()
-            .map(|(i, prices)| price_for_seq(&prices, &diffs[i], sized_seq))
-            .filter(Option::is_some)
-            .map(Option::unwrap)
-            .sum();
-
-        if bananas > max {
-            println!("{:?}: Buyers would total {} bananas.", seq, bananas);
-            max = bananas;
-        }
-    }
-
-    println!("Max bananas are {}", max);
+    println!("Sum at {} gets us {}", max_position as u16, max_possible);
+    println!("This is sequence {},{},{},{}", v1, v2, v3, v4);
 }
