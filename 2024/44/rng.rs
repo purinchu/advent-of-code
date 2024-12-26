@@ -24,12 +24,15 @@ fn evolve_secret(num: u64) -> u64 {
     return new_secret;
 }
 
-fn record_prices(init: u64) -> Vec<u16> {
+fn record_prices(init: u64, totals: &mut Vec<u16>) {
     let mut secret = init;
     let mut last_price: i8 = (init % 10) as i8;
-    let mut idx: u16 = 0;
+    let mut idx: u32 = 0;
 
-    let mut max_bananas: Vec<u16> = vec![0xFFFFu16; 65536];
+    // The top bit being set implies the value has not yet been set
+    // Need 20 bits to allow for 5 bits the largest possible delta (-9) to be encoded into the
+    // index.  The actual value will be bigger and non-zero so the value type is u16.
+    let mut max_bananas: Vec<u16> = vec![0x8000u16; 0x00100000];
 
     for i in 0..2000 {
         secret = evolve_secret(secret);
@@ -38,29 +41,33 @@ fn record_prices(init: u64) -> Vec<u16> {
         let diff = price - last_price;
         last_price = price;
 
-        idx <<= 4;
-        idx |= (diff as u16) & 0x0Fu16;
-        idx &= 0xFFFFu16;
+        idx <<= 5;
+        idx |= (diff as u32) & 0x1Fu32;
+        idx &= 0x000FFFFFu32;
 
         if i >= 3 {
             let idx_right_type = idx as usize;
 
             // Enough info to start recording best prices found
             // Only the first price should be recorded
-            if max_bananas[idx_right_type] == 0xFFFFu16 {
+            if max_bananas[idx_right_type] & 0x8000u16 != 0 {
                 max_bananas[idx_right_type] = price as u16;
             }
         }
     }
 
-    // Reset max price we can sell for to 0 for entries we didn't find
+    // At this point every possible sequence of 4 consecutive price diffs has had
+    // its corresponding max price found encoded into max_bananas
+    //
+    // Clear the 'value not set' flag so that it's not confused with a valid price
     for x in max_bananas.iter_mut() {
-        if *x == 0xFFFFu16 {
-            *x = 0;
-        }
+        *x &= 0x7FFFu16;
     }
 
-    return max_bananas;
+    // Update total counter
+    for i in 0..totals.len() {
+        totals[i] += max_bananas[i];
+    }
 }
 
 fn main() {
@@ -79,26 +86,20 @@ fn main() {
         .map(Result::unwrap)
         .collect::<Vec<_>>();
 
-    let max_improvements: Vec<Vec<u16>> = lines.iter()
-        .map(|seed| record_prices(*seed))
-        .collect::<Vec<_>>();
+    let mut total_bananas: Vec<u16> = vec![0u16; 0x00100000];
+    for line in lines {
+        record_prices(line, &mut total_bananas);
+    }
 
-    let improvement_totals: Vec<u16> = max_improvements.iter().cloned()
-        .reduce(|acc, row| {
-            let sum: Vec<u16> = acc.iter().zip(row.iter()).map(|(l,r)| l+r).collect::<Vec<_>>();
-            return sum
-        })
-        .unwrap()
-        ;
+    let max_possible: u16 = *total_bananas.iter().max().unwrap();
+    let max_position: i32 = (total_bananas.iter()
+        .position(|x| *x == max_possible).unwrap()) as i32;
 
-    let max_possible: u16 = *improvement_totals.iter().max().unwrap();
-    let max_position: i16 = (improvement_totals.iter()
-        .position(|x| *x == max_possible).unwrap()) as i16;
-
-    let v1 : i8 =  ((max_position)                    >> 12) as i8;
-    let v2 : i8 = (((max_position & 0x0F00i16) << 4 ) >> 12) as i8;
-    let v3 : i8 = (((max_position & 0x00F0i16) << 8 ) >> 12) as i8;
-    let v4 : i8 = (((max_position & 0x000Fi16) << 12) >> 12) as i8;
+    // Each position is 5 bits of 20 total in use
+    let v1 : i8 =  ((max_position              << 12) >> 27) as i8;
+    let v2 : i8 = (((max_position & 0x7C00i32) << 17) >> 27) as i8;
+    let v3 : i8 = (((max_position & 0x03E0i32) << 22) >> 27) as i8;
+    let v4 : i8 = (((max_position & 0x001Fi32) << 27) >> 27) as i8;
 
     println!("Sum at {} gets us {}", max_position as u16, max_possible);
     println!("This is sequence {},{},{},{}", v1, v2, v3, v4);
