@@ -36,7 +36,7 @@ class Puzzle
     key2 = [n1, n3].sort.join
     key3 = [n2, n3].sort.join
 
-    return (@edges.has_key?(key1) && @edges.has_key?(key2) && @edges.has_key?(key3))
+    return [key1, key2, key3].all? { |x| @edges.has_key?(x) }
   end
 
 end
@@ -54,7 +54,7 @@ p.connections.each_pair { |n, conn|
   conn.combination(2) { |comb|
     n1, n2 = comb
     key = [n, n1, n2].sort.join
-    if n[0] != 't' && n1[0] != 't' && n2[0] != 't'
+    if [n, n1, n2].all? { |x| x[0] != 't' }
       next
     end
 
