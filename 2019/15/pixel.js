@@ -1,8 +1,10 @@
-#!../../qjs/qjs --std
+#!/usr/bin/env node
 
 'use strict';
 
 // Advent of Code 2019 - Day 8, part 1
+
+const fs = require('node:fs');
 
 function * seq(start = 0, end = Infinity, step = 1) {
     for(let i = start; i < end; i += step) {
@@ -14,10 +16,14 @@ function trap(msg) {
     throw new Error(msg);
 }
 
-try {
-    const in_file = scriptArgs[1] || '../15/input';
+function print(msg) {
+    console.log(msg);
+}
 
-    const file = std.loadFile(in_file)
+try {
+    const in_file = process.argv[2] || '../15/input';
+
+    const file = fs.readFileSync(in_file, { encoding: 'utf8' });
     if (!file) {
         trap(`Unknown file ${in_file}!`);
     }
@@ -49,10 +55,8 @@ try {
 
     print(`This layer has a product of ${num_one} * ${num_two} = ${num_one  * num_two}`);
 
-    std.exit(0);
-
 } catch (err) {
-    std.err.puts(`Caught exception: "${err.message}"\n${err.stack}\n`);
-    std.exit(1);
+    console.error(`Caught exception: "${err.message}"\n${err.stack}\n`);
+    process.exit(1);
 }
 
