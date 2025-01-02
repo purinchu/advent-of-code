@@ -229,6 +229,13 @@ class IntcodeSimulator {
             return;
         }
 
+        const ops = new Map([
+            ['1', '+'],
+            ['2', '*'],
+            ['7', '<'],
+            ['8', '=='],
+        ]);
+
         const pmode = [parseInt(op_str[3], 10), parseInt(op_str[2], 10), parseInt(op_str[1], 10)];
         const ip_str = `[${(""+ip).padStart(6,'0')}]`;
         const o = opcode.padEnd(4, ' ');
@@ -240,7 +247,8 @@ class IntcodeSimulator {
             if (i == n) {
                 puts (' -> ');
             } else if (i > 1) {
-                puts (' -op- ');
+                const op = ops.get(op_str[5]) || '-op-';
+                puts (` ${op} `);
             }
 
             const parm = this.intcode[this.ip + i];
