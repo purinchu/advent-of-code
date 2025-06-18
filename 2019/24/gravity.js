@@ -2,7 +2,7 @@
 
 'use strict';
 
-// Advent of Code 2019 - Day 12, part 1
+// Advent of Code 2019 - Day 12, part 2
 
 const fs = require('node:fs');
 const process = require('node:process');
@@ -15,6 +15,17 @@ function print(msg) {
     console.log(msg);
 }
 
+function gcd(n1, n2) {
+    if (n2 === 0) {
+        return n1;
+    }
+    return gcd(n2, n1 % n2);
+}
+
+function lcm(n1, n2) {
+    return Math.abs(n1 * n2) / gcd(n1, n2);
+}
+
 try {
     const in_file = process.argv[2] || '../23/input';
 
@@ -23,9 +34,6 @@ try {
         trap(`Unknown file ${in_file}!`);
     }
 
-    const num_steps = parseInt(process.argv[3] || '10');
-
-    let puzzle = new Set();
     let positions = new Array();  // Array of 3-elem arrays that represent a moon position
     let velocities = new Array(); // Array of 3-elem arrays that represent a moon position
     let pairs = new Array();
@@ -50,8 +58,8 @@ try {
         }
     }
 
-    const pad3_to_3 = (vec) => {
-        const strs = Array.from(vec).map(x => (""+x).padStart(3, " "));
+    const pad3_to_4 = (vec) => {
+        const strs = Array.from(vec).map(x => (""+x).padStart(4, " "));
         return strs.join(", ");
     };
 
@@ -60,7 +68,7 @@ try {
             const [x, y, z] = positions[i];
             const [dx, dy, dz] = velocities[i];
 
-            print(`pos=< ${pad3_to_3(positions[i])}>, vel=< ${pad3_to_3(velocities[i])}>`);
+            print(`pos=< ${pad3_to_4(positions[i])}>, vel=< ${pad3_to_4(velocities[i])}>`);
         }
 
         print(''); // extra line for spacing
@@ -69,7 +77,17 @@ try {
     print(`After 0 steps:`);
     show_state();
 
-    for (let i = 0; i < num_steps; i++) {
+    // We need to find repeating cycles in our universe of moons. Conveniently,
+    // the 3 dimensions are completely independent computationally, and even
+    // more "conveniently", the 3 dimensions' cycles will be independent and
+    // all start from the initial state by M-A-G-I-C...
+    let cur_step = 0, cycles_needed = 3;
+    let cycle_at = [ 0, 0, 0 ];
+
+    // only positions are copied, initial state of all velocities is 0
+    const initial_state = structuredClone(positions);
+
+    while (cycles_needed > 0) {
         for (const [i, j] of pairs) {
             // apply gravity to update velocity
             const pos_l = positions[i];
@@ -91,10 +109,35 @@ try {
             }
         }
 
+        cur_step++; // must happen before cycle check for count to be right
+
+        // check for cycles
+        for (let dim = 0; dim < 3; dim++) {
+            if (cycle_at[dim] > 0) {
+                continue;
+            }
+
+            let cycle_found = true;
+            for (let i = 0; i < positions.length; i++) {
+                if (positions[i][dim] !== initial_state[i][dim] || velocities[i][dim] !== 0) {
+                    cycle_found = false;
+                    break;
+                }
+            }
+
+            if (cycle_found) {
+                cycles_needed--;
+                cycle_at[dim] = cur_step;
+            }
+        }
     }
 
-    print(`After ${num_steps} steps:`);
+    print(`After ${cur_step} steps:`);
     show_state();
+
+    const lcm1 = lcm(cycle_at[0], cycle_at[1]);
+    const lcm2 = lcm(lcm1, cycle_at[2]);
+    print (`Cycles were ${cycle_at}, lcm=${lcm2}`);
 
     // calculate total energy by summing abs value of positions and velocities
     // this must be done as a sum of products of the pos-sum and velo-sums
