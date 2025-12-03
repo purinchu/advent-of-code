@@ -1,4 +1,4 @@
-CXXFLAGS := -std=c++23 -O2 -Wall -W -Wextra -fsanitize=address,undefined -pipe -march=native
+CXXFLAGS := -std=c++23 -O3 -Wall -W -Wextra -fsanitize=address,undefined -pipe -march=native
 
 TARGET := id
 

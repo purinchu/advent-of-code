@@ -2,6 +2,7 @@
 #include <array>
 #include <charconv>
 #include <fstream>
+#include <future>
 #include <numeric>
 #include <print>
 #include <ranges>
@@ -47,19 +48,19 @@ static void chunk_str_by_n(string_view s, int chunk_size, str_chunks &out)
     }
 }
 
-static constexpr vector<int> n_divisors(int n)
+static constexpr void n_divisors(int n, vector<int> &out)
 {
     // all divisors that evenly divide into n, excluding n itself
     switch (n) {
-        case 2 : return { 1 };
-        case 3 : return { 1 };
-        case 4 : return { 1, 2 };
-        case 5 : return { 1 };
-        case 6 : return { 1, 2, 3 };
-        case 7 : return { 1 };
-        case 8 : return { 1, 2, 4 };
-        case 9 : return { 1, 3 };
-        case 10: return { 1, 2, 5 };
+        case 2 : out.assign({ 1 }); return;
+        case 3 : out.assign({ 1 }); return;
+        case 4 : out.assign({ 1, 2 }); return;
+        case 5 : out.assign({ 1 }); return;
+        case 6 : out.assign({ 1, 2, 3 }); return;
+        case 7 : out.assign({ 1 }); return;
+        case 8 : out.assign({ 1, 2, 4 }); return;
+        case 9 : out.assign({ 1, 3 }); return;
+        case 10: out.assign({ 1, 2, 5 }); return;
         default: {
             std::println("Invalid divisor {}", n);
             throw std::runtime_error("Invalid divisor");
@@ -70,14 +71,15 @@ static constexpr vector<int> n_divisors(int n)
 static InvSum sum_invalid_in_range(InvSum from, InvSum upto)
 {
     std::array<char, 18> buf;
+    vector<int> divs(4);
     str_chunks chunks;
 
-    const auto is_inv = [&chunks, &buf](InvSum i) {
+    const auto is_inv = [&chunks, &buf, &divs](InvSum i) {
         const auto res = std::to_chars(buf.data(), buf.data() + buf.size(), i);
         const std::string_view res_view(buf.data(), res.ptr - buf.data());
 
-        const auto all_divisors = n_divisors(res_view.size());
-        return stdr::any_of(all_divisors, [&chunks, &res_view](const int divisor) {
+        n_divisors(res_view.size(), divs);
+        return stdr::any_of(divs, [&chunks, &res_view](const int divisor) {
             chunk_str_by_n(res_view, divisor, chunks);
             const auto ret = stdr::unique(chunks);
             return stdr::distance(chunks.begin(), ret.begin()) == 1;
