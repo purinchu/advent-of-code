@@ -86,8 +86,7 @@ static InvSum sum_invalid_in_range(InvSum from, InvSum upto)
         });
     };
 
-    auto &&inv_view = stdv::iota(from, upto + 1)
-        | stdv::filter([](InvSum i) { return i >= 10; }) // so we don't try to divisor 1-digit nums
+    auto &&inv_view = stdv::iota(std::max(from, InvSum(10)), upto + 1)
         | stdv::filter(is_inv)
         ;
     const InvSum num_invalid = stdr::fold_left(inv_view, InvSum(0), std::plus<InvSum>{});
