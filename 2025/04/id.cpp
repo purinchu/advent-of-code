@@ -10,6 +10,7 @@
 #include <string_view>
 #include <vector>
 
+using std::array;
 using std::tuple;
 using std::string;
 using std::vector;
@@ -112,14 +113,46 @@ static auto bounds_from_range(std::string_view rng)
 static InvSum sum_invalid_in_line(std::string_view line)
 {
     // break line into subranges divided by ','
-    InvSum inv = 0;
-    for (const auto &subr : stdv::split(line, ","sv)) {
-        const std::string_view rng(subr.begin(), subr.end());
-        const auto [l, r] = bounds_from_range(rng);
-        inv += sum_invalid_in_range(l, r);
+    auto &&inv_view = stdv::split(line, ","sv)
+        | stdv::transform([](const auto &subr) { return std::string_view(subr.begin(), subr.end()); })
+        | stdv::transform([](const auto &sv)   { return bounds_from_range(sv); })
+        ;
+
+    constexpr static const int NUM_THREADS = 8;
+    array<std::future<InvSum>, NUM_THREADS> threaded_sums;
+    array<vector<tuple<InvSum, InvSum>>, NUM_THREADS> work_in;
+
+    // copy range tuples into per-thread work queues
+    int i = 0;
+    for (const auto &tpl : inv_view) {
+        work_in[i].push_back(tpl); // simple round-robin
+        if (++i >= NUM_THREADS) {
+            i = 0;
+        }
     }
 
-    return inv;
+    auto &&thread_worker = [](const auto &tpls) {
+        InvSum sum = 0;
+        for (const auto &[from, to] : tpls) {
+            sum += sum_invalid_in_range(from, to);
+        }
+        return sum;
+    };
+
+    // launch threads
+    for (int j = 0; j < NUM_THREADS; j++) {
+        threaded_sums[j] = std::async(thread_worker, work_in[j]);
+    }
+
+    // wait for threads
+    for (auto &&fut : threaded_sums) {
+        fut.wait();
+    }
+
+    // sum the sums
+    InvSum res = stdr::fold_left(threaded_sums | stdv::transform([](auto &&fut) { return fut.get(); }),
+            0, std::plus{});
+    return res;
 }
 
 int main(int argc, char *argv[])
