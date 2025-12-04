@@ -16,27 +16,7 @@ using std::string_view;
 namespace stdr = std::ranges;
 namespace stdv = std::views;
 
-using namespace std::literals::string_literals;
-using namespace std::literals::string_view_literals;
-
-using Batteries = vector<string>;
 using U64 = std::uint64_t;
-
-static Batteries get_input_lines(const string &fname)
-{
-    Batteries out;
-    std::ifstream in_f(fname, std::ios::in);
-    if (!in_f.is_open()) {
-        throw std::runtime_error("Failed to open file");
-    }
-
-    string buf;
-    while (std::getline(in_f, buf)) {
-        out.emplace_back(buf);
-    }
-
-    return out;
-}
 
 static U64 get_joltage(std::string_view batts)
 {
@@ -81,14 +61,16 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    string fname(argv[1]);
-
+    const string fname(argv[1]);
     try {
-        const Batteries batts = get_input_lines(fname);
-        U64 sum{};
-        for (const string &b : batts) {
-            sum += get_joltage(b);
+        std::ifstream in_f(fname, std::ios::in);
+        if (!in_f.is_open()) {
+            throw std::runtime_error("Failed to open file");
         }
+
+        U64 sum = stdr::fold_left(
+            stdv::istream<string>(in_f) | stdv::transform(get_joltage),
+            U64{}, std::plus{});
 
         std::cout << sum << "\n";
     }
