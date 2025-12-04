@@ -21,12 +21,9 @@ using U64 = std::uint64_t;
 static U64 get_joltage(std::string_view batts)
 {
     const constexpr size_t NUM_BATTERIES = 12;
-    auto &&pipeline = batts
-        | stdv::transform([](char c) -> int { return c - '0'; })
-        | stdv::slide(NUM_BATTERIES)
-        ;
+    auto &&pipeline = batts | stdv::slide(NUM_BATTERIES);
 
-    using Bs = std::array<uint8_t, NUM_BATTERIES>;
+    using Bs = std::array<char, NUM_BATTERIES>;
 
     const Bs sum = stdr::fold_left(pipeline, Bs{}, [](Bs cur, const stdr::viewable_range auto &window) {
         // we'll update this in sync with iterating the window range, which is
@@ -50,7 +47,7 @@ static U64 get_joltage(std::string_view batts)
 
     // The result is an array of 0-9 that must be turned into a binary digit by reduction
     return stdr::fold_left(sum, U64{}, [](U64 cur, int d) {
-        return cur * 10 + d;
+        return cur * 10 + (d - '0');
     });
 }
 
