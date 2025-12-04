@@ -1,17 +1,13 @@
 #include <algorithm>
 #include <array>
-#include <charconv>
 #include <fstream>
-#include <future>
-#include <numeric>
-#include <print>
+#include <iostream>
 #include <ranges>
 #include <string>
 #include <string_view>
 #include <vector>
 
 using std::array;
-using std::tuple;
 using std::string;
 using std::vector;
 using std::size_t;
@@ -25,19 +21,6 @@ using namespace std::literals::string_view_literals;
 
 using Batteries = vector<string>;
 using U64 = std::uint64_t;
-using str_chunks = vector<string_view>;
-
-string get_input_line(const string &fname)
-{
-    std::ifstream in_f(fname, std::ios::in);
-    if (!in_f.is_open()) {
-        throw std::runtime_error("Failed to open file");
-    }
-
-    string out;
-    std::getline(in_f, out);
-    return out;
-}
 
 static Batteries get_input_lines(const string &fname)
 {
@@ -63,17 +46,18 @@ static U64 get_joltage(std::string_view batts)
         | stdv::slide(NUM_BATTERIES)
         ;
 
-    using Bs = std::array<int, NUM_BATTERIES>;
+    using Bs = std::array<uint8_t, NUM_BATTERIES>;
 
     const Bs sum = stdr::fold_left(pipeline, Bs{}, [](Bs cur, const stdr::viewable_range auto &window) {
-        // window is a std::ranges::viewable_range
-        auto &&it = cur.begin(); // we'll update this as we iterate the range
+        // we'll update this in sync with iterating the window range, which is
+        // going to be a forward-only view rather than random-access.
+        auto &&it = cur.begin();
 
         bool reset = false;
         for (const auto &place : window) {
             // once we find a place value to update, all place values that come after need to be
             // reset.
-            if (place > *it || reset) {
+            if (reset || place > *it) {
                 reset = true;
                 *it = place;
             }
@@ -93,7 +77,7 @@ static U64 get_joltage(std::string_view batts)
 int main(int argc, char *argv[])
 {
     if (argc < 2) {
-        std::println("Pass filename to read");
+        std::cerr << "Pass filename to read\n";
         return 1;
     }
 
@@ -105,14 +89,15 @@ int main(int argc, char *argv[])
         for (const string &b : batts) {
             sum += get_joltage(b);
         }
-        std::println("{}", sum);
+
+        std::cout << sum << "\n";
     }
     catch (std::runtime_error &err) {
-        std::println("Error {} while handling {}", err.what(), fname);
+        std::cerr << "Error " << err.what() << " while handling " << fname << "\n";
         return 1;
     }
     catch (...) {
-        std::println("Unknown error handling {}", fname);
+        std::cerr << "Unknown error handling " << fname << "\n";
         return 1;
     }
 
