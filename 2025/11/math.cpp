@@ -110,26 +110,28 @@ int main(int argc, char *argv[])
 
     const string fname(argv[1]);
     try {
-        const auto [nums, ops] = get_math_input(fname);
+        const auto &[nums, ops] = get_math_input(fname);
 
         // running sum will be a pair for the add / mult, initialized with the
         // respective identity
 
-        Term init = make_pair(0, 1); // add / mult
-        TermList running_sum(ops.size(), init);
-
-        for (const auto &num_line : nums) {
-            for (size_t i = 0; i < ops.size(); i++) {
-                const auto &[add_cur, mult_cur] = running_sum[i];
-                const Int num = num_line[i];
-                running_sum[i] = make_pair(add_cur + num, mult_cur * num);
-            }
-        }
-
         Int sum = 0;
         for (size_t i = 0; i < ops.size(); i++) {
-            const auto &[add_res, mult_res] = running_sum[i];
-            sum += (ops[i] == '*') ? mult_res : add_res;
+            Int running_sum = 0;
+
+            if (ops[i] == '*') {
+                running_sum = 1;
+                for (const auto &num_line : nums) {
+                    running_sum *= num_line[i];
+                }
+            }
+            else {
+                for (const auto &num_line : nums) {
+                    running_sum += num_line[i];
+                }
+            }
+
+            sum += running_sum;
         }
 
         std::cout << sum << "\n";
