@@ -43,6 +43,25 @@ static inline auto skip_ws(string_view sv)
     return string_view{};
 }
 
+static void tokenize_line(string_view line, const auto &func)
+{
+    string_view cur = skip_ws(line);
+    size_t next = cur.find(" "sv);
+
+    while(!cur.empty()) {
+        string_view token = cur.substr(0, next);
+        cur = skip_ws(cur.substr(next));
+        if (!cur.empty()) {
+            next = cur.find(" "sv);
+            if (next == cur.npos) {
+                next = cur.size();
+            }
+        }
+
+        func(token);
+    }
+}
+
 static Data get_math_input(const string &fname)
 {
     // each line a list of numbers to do math upon. last line is the math ops
@@ -61,38 +80,19 @@ static Data get_math_input(const string &fname)
         // for ws and non-ws as needed.
 
         NumList cur_line;
-        string_view cur = skip_ws(str);
-        size_t next = cur.find(" "sv);
+        const string_view cur = skip_ws(str);
 
         if (cur.starts_with("*"sv) || cur.starts_with("+"sv)) {
             // last line, read ops rather than numbers
-            while(!cur.empty()) {
-                string_view op = cur.substr(0, next);
-                cur = skip_ws(cur.substr(next));
-                if (!cur.empty()) {
-                    next = cur.find(" "sv);
-                    if (next == cur.npos) {
-                        next = cur.size();
-                    }
-                }
-
-                ops.emplace_back(op[0]);
-            }
+            tokenize_line(cur, [&ops](string_view tok) {
+                ops.emplace_back(tok[0]);
+            });
         }
         else {
             // data line, read numbers
-            while(!cur.empty()) {
-                Int cur_val = int_from_str(cur.substr(0, next));
-                cur = skip_ws(cur.substr(next));
-                if (!cur.empty()) {
-                    next = cur.find(" "sv);
-                    if (next == cur.npos) {
-                        next = cur.size();
-                    }
-                }
-
-                cur_line.emplace_back(cur_val);
-            }
+            tokenize_line(cur, [&cur_line](string_view tok) {
+                cur_line.emplace_back(int_from_str(tok));
+            });
 
             lines.emplace_back(std::move(cur_line));
         }
@@ -111,20 +111,6 @@ int main(int argc, char *argv[])
     const string fname(argv[1]);
     try {
         const auto [nums, ops] = get_math_input(fname);
-
-        if constexpr (false) {
-            for (const auto &op : ops) {
-                std::cout << "op will be " << op << "\n";
-            }
-
-            for (const auto &num_line : nums) {
-                std::cout << "New line of numbers: [\n";
-                for (const auto &num : num_line) {
-                    std::cout << "    " << num << "\n";
-                }
-                std::cout << "]\n";
-            }
-        }
 
         // running sum will be a pair for the add / mult, initialized with the
         // respective identity
