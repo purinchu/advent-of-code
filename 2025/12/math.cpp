@@ -21,11 +21,7 @@ namespace stdv = std::views;
 
 using namespace std::literals::string_view_literals;
 
-using Int         = std::uint64_t;
-using Term        = pair<Int, Int>;
-using NumList     = vector<Int>;     // input data
-using TermList    = vector<Term>;    // running sums
-using Data        = pair<vector<NumList>,vector<char>>;
+using Int = std::uint64_t;
 
 static inline Int int_from_str(string_view sv)
 {
@@ -43,7 +39,7 @@ static inline auto skip_ws(string_view sv)
     return string_view{};
 }
 
-static Int preprocess_input(const string &fname)
+static Int sum_reversed_input(const string &fname)
 {
     vector<string> out_lines;
     vector<string> input;
@@ -63,98 +59,49 @@ static Int preprocess_input(const string &fname)
     }
 
     // handle separately, these are the ops
-    string last_line(std::move(input.back()));
+    const string last_line(std::move(input.back()));
     input.pop_back();
 
-    // iterate backwards and converts rows to strings
+    // iterate backwards and converts nums read from top to bottom to integers
+    // as we go.
     string buf(input.size(), '\0');
-    size_t line_len = input[0].size();
+    const size_t line_len = input[0].size();
     vector<Int> nums;
     Int sum = 0;
 
     for (size_t i = 0; i < line_len; i++) {
-        size_t pos = line_len - 1 - i;
+        const size_t pos = line_len - 1 - i; // to count backwards
+
+        // transpose rows into a string.  If no number is ever detected then
+        // this column was the last number in the list of numbers to operate
+        // upon.
         bool has_num = false;
         for (size_t j = 0; j < input.size(); j++) {
             buf[j] = input[j][pos];
             has_num = has_num || (buf[j] != ' ');
         }
-        if (has_num) {
-            nums.emplace_back(int_from_str(skip_ws(buf)));
-            char op = last_line[pos];
-            if (op == '*') {
-                Int val = stdr::fold_left(nums, Int(1), std::multiplies{});
-                sum += val;
-            }
-            else if (op == '+') {
-                Int val = stdr::fold_left(nums, Int(0), std::plus{});
-                sum += val;
-            }
+
+        // skip empty columns
+        if (!has_num) {
+            continue;
         }
-        else {
-            nums.clear();
+
+        nums.emplace_back(int_from_str(skip_ws(buf)));
+
+        // check if we have an operation to apply
+        const char op = last_line[pos];
+        if (op == ' ') {
+            continue;
         }
+
+        const Int val = (op == '*')
+            ? stdr::fold_left(nums, Int(1), std::multiplies{})
+            : stdr::fold_left(nums, Int(0), std::plus{});
+        sum += val;
+        nums.clear();
     }
 
     return sum;
-}
-
-static Data get_math_input(const string &fname)
-{
-    // each line a list of numbers to do math upon. last line is the math ops
-    // to perform, either '+' or '*'
-    std::ifstream in_f(fname, std::ios::in);
-    if (!in_f.is_open()) {
-        throw std::runtime_error("Failed to open file");
-    }
-
-    vector<NumList> lines;
-    vector<char>    ops;
-    string str;
-    while(std::getline(in_f, str)) {
-        // stdv::split is not suitable because the spaces are variable-length
-        // and may or may not start off a line. So just go old-school looking
-        // for ws and non-ws as needed.
-
-        NumList cur_line;
-        string_view cur = skip_ws(str);
-        size_t next = cur.find(" "sv);
-
-        if (cur.starts_with("*"sv) || cur.starts_with("+"sv)) {
-            // last line, read ops rather than numbers
-            while(!cur.empty()) {
-                string_view op = cur.substr(0, next);
-                cur = skip_ws(cur.substr(next));
-                if (!cur.empty()) {
-                    next = cur.find(" "sv);
-                    if (next == cur.npos) {
-                        next = cur.size();
-                    }
-                }
-
-                ops.emplace_back(op[0]);
-            }
-        }
-        else {
-            // data line, read numbers
-            while(!cur.empty()) {
-                Int cur_val = int_from_str(cur.substr(0, next));
-                cur = skip_ws(cur.substr(next));
-                if (!cur.empty()) {
-                    next = cur.find(" "sv);
-                    if (next == cur.npos) {
-                        next = cur.size();
-                    }
-                }
-
-                cur_line.emplace_back(cur_val);
-            }
-
-            lines.emplace_back(std::move(cur_line));
-        }
-    }
-
-    return make_pair(std::move(lines), std::move(ops));
 }
 
 int main(int argc, char *argv[])
@@ -166,7 +113,7 @@ int main(int argc, char *argv[])
 
     const string fname(argv[1]);
     try {
-        Int sum = preprocess_input(fname);
+        const Int sum = sum_reversed_input(fname);
         std::cout << sum << "\n";
     }
     catch (std::runtime_error &err) {
