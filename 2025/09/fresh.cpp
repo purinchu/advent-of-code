@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
     }
 
     const string fname(argv[1]);
+
     try {
         const auto [freshness, ingredients] = get_freshness_input(fname);
 
@@ -91,36 +92,17 @@ int main(int argc, char *argv[])
                 const auto &[l, r] = fr;
                 return val < l;
             });
-            if (ceil == lower) {
-                // nothing can match, at least based on lower bound
-                continue;
-            }
 
-            bool match = false;
-            for (auto it = lower; it != ceil; ++it) {
-                const auto &[l, r] = *it;
-                if (i >= l && i <= r) {
-                    match = true;
-                    count++;
-                    break;
-                }
-            }
-            if (match) {
-                continue;
-            }
-#if 0
-
-            // only things in this range or after can match i
-            const auto start = std::lower_bound(lower, ceil, i, [](const FreshRange &fr, const ID val) {
-                const auto &[l, r] = fr;
-                return r < val;
+            // You'd need to resort the range to do an std::lower_bound when
+            // comparing on the end of a FreshRange, so just look manually for
+            // a match.
+            const auto &it = std::find_if(lower, ceil, [i](const FreshRange &fr) {
+                return (i >= fr.first && i <= fr.second);
             });
-            if (start == ceil) {
-                continue;
-            }
 
-            count++;
-#endif
+            if (it != ceil) {
+                count++;
+            }
         }
 
         std::cout << count << "\n";
