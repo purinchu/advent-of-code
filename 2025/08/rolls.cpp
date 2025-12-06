@@ -1,28 +1,18 @@
-#include <algorithm>
 #include <array>
 #include <cstring>
-#include <charconv>
 #include <iostream>
 #include <fstream>
-#include <future>
-#include <numeric>
-#include <ranges>
 #include <string>
-#include <string_view>
+#include <utility>
 #include <vector>
 
 using std::array;
-using std::tuple;
 using std::cout;
 using std::cerr;
 using std::string;
 using std::make_pair;
 using std::vector;
 using std::size_t;
-using std::string_view;
-
-namespace stdr = std::ranges;
-namespace stdv = std::views;
 
 struct Grid
 {
