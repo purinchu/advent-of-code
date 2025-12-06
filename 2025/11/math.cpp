@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <ranges>
@@ -19,13 +20,10 @@ using std::vector;
 namespace stdr = std::ranges;
 namespace stdv = std::views;
 
+using namespace std::literals::chrono_literals;
 using namespace std::literals::string_view_literals;
 
-using Int         = std::uint64_t;
-using Term        = pair<Int, Int>;
-using NumList     = vector<Int>;     // input data
-using TermList    = vector<Term>;    // running sums
-using Data        = pair<vector<NumList>,vector<char>>;
+using Int = std::uint64_t;
 
 static inline Int int_from_str(string_view sv)
 {
@@ -46,59 +44,87 @@ static inline auto skip_ws(string_view sv)
 static void tokenize_line(string_view line, const auto &func)
 {
     string_view cur = skip_ws(line);
-    size_t next = cur.find(" "sv);
+    size_t idx = 0;
 
     while(!cur.empty()) {
-        string_view token = cur.substr(0, next);
-        cur = skip_ws(cur.substr(next));
-        if (!cur.empty()) {
-            next = cur.find(" "sv);
-            if (next == cur.npos) {
-                next = cur.size();
-            }
-        }
-
-        func(token);
+        const size_t next = cur.find(' ');
+        const string_view token = cur.substr(0, next);
+        cur = (next != cur.npos)
+            ? skip_ws(cur.substr(next))
+            : string_view{};
+        func(token, idx++);
     }
 }
 
-static Data get_math_input(const string &fname)
+static string inline file_slurp(const string &fname)
 {
-    // each line a list of numbers to do math upon. last line is the math ops
-    // to perform, either '+' or '*'
-    std::ifstream in_f(fname, std::ios::in);
+    // ::ate is used to quickly get filesize with tellg
+    std::ifstream in_f(fname, std::ios::in | std::ios::ate);
     if (!in_f.is_open()) {
         throw std::runtime_error("Failed to open file");
     }
 
-    vector<NumList> lines;
-    vector<char>    ops;
-    string str;
-    while(std::getline(in_f, str)) {
-        // stdv::split is not suitable because the spaces are variable-length
-        // and may or may not start off a line. So just go old-school looking
-        // for ws and non-ws as needed.
+    const auto sz = in_f.tellg();
+    string str(sz, '\0');
+    in_f.seekg(0);
+    in_f.read(str.data(), str.size());
 
-        NumList cur_line;
-        const string_view cur = skip_ws(str);
+    return str;
+}
 
-        if (cur.starts_with("*"sv) || cur.starts_with("+"sv)) {
+static Int sum_math_input(const string &fname)
+{
+    // each line a list of numbers to do math upon. last line is the math ops
+    // to perform, either '+' or '*'
+    const string str = file_slurp(fname);
+
+    static constexpr const size_t MAX_PER_SUM = 4; // max number of entries to reserve per op
+    using SumTerm = array<uint16_t, MAX_PER_SUM>;
+
+    vector<SumTerm> terms;
+    terms.resize(1023); // We fill with empty SumTerm on purpose so we can operator[] later
+
+    size_t cur_line_idx = 0;
+
+    for (const auto &subr : stdv::split(str, "\n"sv)) {
+        // stdv::split is not suitable to further split the line because the
+        // spaces are variable-length. So just go old-school looking for ws and
+        // non-ws as needed (handled in tokenize).
+
+        const string_view line(subr.begin(), subr.end());
+        const string_view line_start(skip_ws(line));
+        const char first_ch = line_start[0];
+
+        if (first_ch == '*' || first_ch == '+') {
             // last line, read ops rather than numbers
-            tokenize_line(cur, [&ops](string_view tok) {
-                ops.emplace_back(tok[0]);
+            Int sum = 0;
+            tokenize_line(line_start, [&terms, &sum](string_view tok, size_t idx) {
+                if (tok[0] == '*') {
+                    // multiplicative identity is 1 not default of 0
+                    for (auto &i : terms[idx]) {
+                        i = (i == 0) ? 1 : i;
+                    }
+
+                    sum += stdr::fold_left(terms[idx], Int(1), std::multiplies{});
+                }
+                else {
+                    sum += stdr::fold_left(terms[idx], Int(0), std::plus{});
+                }
             });
+
+            return sum;
         }
         else {
             // data line, read numbers
-            tokenize_line(cur, [&cur_line](string_view tok) {
-                cur_line.emplace_back(int_from_str(tok));
+            tokenize_line(line_start, [&terms, cur_line_idx](string_view tok, size_t idx) {
+                terms[idx][cur_line_idx] = int_from_str(tok);
             });
 
-            lines.emplace_back(std::move(cur_line));
+            cur_line_idx++;
         }
     }
 
-    return make_pair(std::move(lines), std::move(ops));
+    throw std::runtime_error("This should be unreachable for normal input");
 }
 
 int main(int argc, char *argv[])
@@ -110,31 +136,13 @@ int main(int argc, char *argv[])
 
     const string fname(argv[1]);
     try {
-        const auto &[nums, ops] = get_math_input(fname);
+        using namespace std::chrono;
 
-        // running sum will be a pair for the add / mult, initialized with the
-        // respective identity
+        const auto start = steady_clock::now();
+        const Int  sum   = sum_math_input(fname);
+        const auto end   = steady_clock::now();
 
-        Int sum = 0;
-        for (size_t i = 0; i < ops.size(); i++) {
-            Int running_sum = 0;
-
-            if (ops[i] == '*') {
-                running_sum = 1;
-                for (const auto &num_line : nums) {
-                    running_sum *= num_line[i];
-                }
-            }
-            else {
-                for (const auto &num_line : nums) {
-                    running_sum += num_line[i];
-                }
-            }
-
-            sum += running_sum;
-        }
-
-        std::cout << sum << "\n";
+        std::cout << sum << " (" << duration_cast<microseconds>(end - start).count() << "µs)\n";
     }
     catch (std::runtime_error &err) {
         std::cerr << "Error " << err.what() << " while handling " << fname << "\n";
