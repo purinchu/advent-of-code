@@ -72,29 +72,41 @@ int main(int argc, char *argv[])
         cout << "Grid size: " << g.w << "," << g.h << "\n";
 
         vector<Int> tachyons(g.w, 0); // number of beams through a cell
-        bool start_found = false;
         unsigned num_splits = 0;
 
-        for (const auto &subr : stdv::split(g.chars, '\n')) {
-            const string_view line(subr.begin(), subr.end());
+        // this is a wee bit clunky but I don't want to have a boolean check
+        // while we're iterating through the meat of the range, so break out
+        // the start stuff into a manually-advanced loop and then do a normal
+        // range-based loop afterwards.
+        auto lines = stdv::split(g.chars, '\n')
+            | stdv::transform([](const auto &subr) {
+                // each line will start as a subrange that must be manually
+                // converted to a std::string_view.
+                return string_view(subr.begin(), subr.end());
+            });
 
-            // look for start
-            if (!start_found) [[unlikely]] {
-                const auto start_pos = line.find('S');
-                if (start_pos < line.size()) {
-                    tachyons[start_pos] = 1;
-                    start_found = true;
-                    continue;
-                }
+        auto it = lines.begin();
+        while (it != lines.end()) {
+            const string_view line(*it);
+            ++it;
+
+            const size_t pos = line.find('S');
+            if (pos < line.size()) {
+                tachyons[pos] = 1;
+                break;
             }
+        }
 
-            // look for splitters
-            auto &&splitters = line
+        const auto remainder = stdr::subrange(it, stdr::end(lines));
+
+        for (const string_view line : remainder) {
+            auto splitters = line
                 | stdv::enumerate
                 | stdv::filter([](const auto &tpl) { return get<1>(tpl) == '^'; })
+                | stdv::keys // get the first element which is the index
                 ;
 
-            for (const auto [idx, ch] : splitters) {
+            for (const size_t idx : splitters) {
                 const Int old = tachyons[idx];
                 tachyons[idx - 1] += old;
                 tachyons[idx + 1] += old;
