@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <fstream>
@@ -68,6 +69,10 @@ int main(int argc, char *argv[])
     cout.sync_with_stdio(false);
 
     try {
+        using namespace std::chrono;
+
+        const auto start = steady_clock::now();
+
         Grid g = get_input_lines(fname);
         cout << "Grid size: " << g.w << "," << g.h << "\n";
 
@@ -118,7 +123,11 @@ int main(int argc, char *argv[])
         }
 
         const Int total_sum = stdr::fold_left(tachyons, Int(0), std::plus{});
-        cout << "sum=" << total_sum << ", splits=" << num_splits << "\n";
+
+        const auto stop   = steady_clock::now();
+
+        cout << "sum=" << total_sum << ", splits=" << num_splits;
+        cout << " (" << duration_cast<microseconds>(stop - start).count() << "µs)\n";
     }
     catch (std::runtime_error &err) {
         cerr << "Error " << err.what() << " while handling " << fname << "\n";
