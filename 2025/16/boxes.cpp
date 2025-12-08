@@ -159,11 +159,6 @@ int main(int argc, char *argv[])
     }
 
     string fname(argv[1]);
-    size_t num_connections = 1000;
-    if (argc >= 3) {
-        num_connections = int_from_str(argv[2]);
-    }
-
     cout.sync_with_stdio(false);
 
     try {
@@ -175,19 +170,11 @@ int main(int argc, char *argv[])
         auto &&circuits                   = build_circuits(points);
         const vector<DistEntry> distances = build_dist_table(points);
 
-        int i = 0;
         for (const auto &dt : distances) {
             connect_points(circuits, dt.from, dt.to);
             if (circuits.size() == 1) {
                 cout << points[dt.from].xyz[0] * points[dt.to].xyz[0];
                 break;
-            }
-
-            i++;
-            if (i > 50) {
-                // sort larger clusters closer to the start periodically
-                stdr::sort(circuits, std::greater{}, [](const Circuit &c) { return c.size(); });
-                i = 0;
             }
         }
 
