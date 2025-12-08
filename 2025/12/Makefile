@@ -1,5 +1,5 @@
 #CXXFLAGS := -std=c++23 -Og -ggdb -Wall -W -Wextra -fsanitize=address,undefined -pipe -march=native
-CXXFLAGS := -std=c++23 -O3 -Wall -W -Wextra -fsanitize=address,undefined -pipe -march=native
+CXXFLAGS := -std=c++23 -O3 -Wall -W -Wextra -static -pipe -march=native
 
 TARGET := math
 

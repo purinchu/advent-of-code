@@ -27,7 +27,7 @@ using Int = std::uint64_t;
 
 static inline Int int_from_str(string_view sv)
 {
-    Int out;
+    Int out = 0;
     std::from_chars(sv.data(), sv.data() + sv.size(), out);
     return out;
 }
