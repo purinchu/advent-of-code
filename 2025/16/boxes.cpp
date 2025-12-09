@@ -33,8 +33,6 @@ namespace stdv = std::views;
 using Coord = std::int32_t;
 using Dist = std::uint64_t;
 using PtIdx = int;
-using Circuit = std::unordered_set<PtIdx>;
-using Circuits = vector<Circuit>;
 
 struct DistEntry
 {
@@ -47,6 +45,8 @@ struct Pt
 {
     array<Coord, 3> xyz;
     int pt_id;
+    int parent;
+    int rank = 0;
 };
 
 static string inline file_slurp(const string &fname)
@@ -83,7 +83,6 @@ static vector<Pt> get_input_problem(const string &fname)
     });
 
     vector<Pt> out;
-    Circuits out_circ;
     const string file_data = file_slurp(fname);
 
     auto lines = stdv::split(file_data, '\n')
@@ -98,19 +97,11 @@ static vector<Pt> get_input_problem(const string &fname)
         Pt pt;
         stdr::copy(coords, pt.xyz.begin());
         pt.pt_id = pt_id++;
+        pt.parent = pt.pt_id;
         out.emplace_back(std::move(pt));
     }
 
     return out;
-}
-
-static Circuits build_circuits(const vector<Pt> &pts)
-{
-    return pts | stdv::transform([](const Pt &p) {
-        Circuit single;
-        single.emplace(p.pt_id);
-        return single;
-    }) | stdr::to<std::vector>();
 }
 
 static auto build_dist_table(const vector<Pt> &pts)
@@ -137,18 +128,44 @@ static auto build_dist_table(const vector<Pt> &pts)
     return distances;
 }
 
-static void connect_points(Circuits &circuits, const PtIdx pt1, const PtIdx pt2)
+static PtIdx find_parent_circuit(vector<Pt> &points, PtIdx x)
 {
-    auto circ_it1 = stdr::find_if(circuits, [pt1](const Circuit &c) { return c.contains(pt1); });
-    auto circ_it2 = stdr::find_if(circuits, [pt2](const Circuit &c) { return c.contains(pt2); });
+    if (points[x].parent != x) {
+        points[x].parent = find_parent_circuit(points, points[x].parent);
+        return points[x].parent;
+    }
+    else {
+        return x;
+    }
+}
 
-    if (circ_it1 == circ_it2) {
-        // already part of same circuit
+static void join_circuits(vector<Pt> &points, PtIdx x, PtIdx y)
+{
+    auto &&px = find_parent_circuit(points, x);
+    auto &&py = find_parent_circuit(points, y);
+
+    if (px == py) {
+        // same parent, already same circuit
         return;
     }
 
-    circ_it1->merge(*circ_it2);
-    circuits.erase(circ_it2);
+    // sort so that x has the larger circuit and make y's circuit
+    // join into x's
+    if (points[px].rank < points[py].rank) {
+        std::swap(px, py);
+    }
+
+    points[py].parent = px;
+    if (points[px].rank == points[py].rank) {
+        (points[px].rank)++;
+    }
+
+    // revalidate parent field for all potentially-affected circuits
+    for (auto &&point : points) {
+        if (point.parent == py) {
+            point.parent = px;
+        }
+    }
 }
 
 int main(int argc, char *argv[])
@@ -166,13 +183,18 @@ int main(int argc, char *argv[])
 
         const auto start = steady_clock::now();
 
-        const auto &points                = get_input_problem(fname);
-        auto &&circuits                   = build_circuits(points);
+        auto points = get_input_problem(fname);
         const vector<DistEntry> distances = build_dist_table(points);
 
         for (const auto &dt : distances) {
-            connect_points(circuits, dt.from, dt.to);
-            if (circuits.size() == 1) {
+            join_circuits(points, dt.from, dt.to);
+
+            // if every successive pair of points is part of the same circuit, we're done
+            if (stdr::all_of(points | stdv::pairwise, [](const auto &parentpair) {
+                        return (get<0>(parentpair).parent) ==
+                               (get<1>(parentpair).parent);
+                    }))
+            {
                 cout << points[dt.from].xyz[0] * points[dt.to].xyz[0];
                 break;
             }
