@@ -10,7 +10,6 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -32,7 +31,7 @@ using namespace std::literals::string_view_literals;
 
 using Int = std::uint64_t;
 using NodeMap = std::unordered_map<string_view, vector<string_view>>;
-using Visited = std::unordered_set<string_view>;
+using Visited = vector<string_view>;
 
 // Simulates a map of Node -> uint8_t. The Node serves as the index
 using Graph = vector<uint8_t>; // Just use up to 64K entries to store distances
@@ -90,6 +89,7 @@ static auto decode_input_line(string_view line)
         }
     }
 
+    stdr::sort(outs);
     return make_pair(name, outs);
 }
 
@@ -112,23 +112,23 @@ static Int num_paths_to(const NodeMap &n, Visited &v, string_view from, string_v
     const auto outs = n.at(from);
 
     // base case
-    if (stdr::find(outs, to) != outs.end()) {
+    if (stdr::binary_search(outs, to)) {
         return 1;
     }
 
-    if (v.contains(from)) {
+    if (stdr::find(v, from) != v.end()) {
         return 0; // cycle detected, not a path
     }
 
     // recursive
-    v.emplace(from);
+    v.push_back(from);
 
     Int num_paths = 0;
     for (const auto out : outs) {
         num_paths += num_paths_to(n, v, out, to);
     }
 
-    v.erase(from);
+    v.pop_back();
 
     return num_paths;
 }
