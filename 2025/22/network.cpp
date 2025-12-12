@@ -105,20 +105,6 @@ static NodeMap get_input_problem(string_view lines)
         | stdr::to<NodeMap>();
 }
 
-// returns a map where the nodes point to their direct predecessors rather than successors
-static NodeMap reverse_nodes(const NodeMap &n)
-{
-    NodeMap out;
-
-    for (const auto &[k, v] : n) {
-        for (const auto &out_edge : v) {
-            out[out_edge].push_back(k);
-        }
-    }
-
-    return out;
-}
-
 static Int num_paths_to(const NodeMap &n, Visited &v, MemoMap &memo, string_view from, string_view to, int flags = 0)
 {
     // The input set is intractable without use of memoization. But we need to
@@ -140,10 +126,6 @@ static Int num_paths_to(const NodeMap &n, Visited &v, MemoMap &memo, string_view
     if (stdr::binary_search(outs, to)) {
         const Int result = (flags == 3) ? 1 : 0;
         return memo[key] = result;
-    }
-
-    if (stdr::find(v, from) != v.end()) {
-        return memo[key] = 0; // cycle detected, not a path
     }
 
     if (from == "dac"sv) { flags |= 1; }
@@ -175,20 +157,13 @@ int main(int argc, char *argv[])
 
         const auto start = steady_clock::now();
 
-        const auto data  = file_slurp(fname);
-
-        // reversing was just an attempting at troubleshooting whether aspects
-        // of the input data set would make it easier to find a path starting
-        // from the end, but that didn't help Leaving it in since this is the
-        // solution that worked.
-        const auto nodes = reverse_nodes(get_input_problem(data));
+        const auto data  = file_slurp(fname); // needs to outlive get_input_problem and num_paths_to
+        const auto nodes = get_input_problem(data);
 
         Visited visited;
         MemoMap memo;
 
-        // since we reversed the node edges we also need to reverse which nodes
-        // are 'to' and 'from'. Otherwise the logic is identical as to part 1.
-        const Int sum = num_paths_to(nodes, visited, memo, "out"sv, "svr"sv);
+        const Int sum = num_paths_to(nodes, visited, memo, "svr"sv, "out"sv);
 
         const auto stop = steady_clock::now();
 
